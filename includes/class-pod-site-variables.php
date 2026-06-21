@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * POD Site Variables - Shortcode Variables System
  * 

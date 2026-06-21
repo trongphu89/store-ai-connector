@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector

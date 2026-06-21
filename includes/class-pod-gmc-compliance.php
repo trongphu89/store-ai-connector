@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * POD AI Connector - GMC Compliance Scanner
  * Scan and fix site for Google Merchant Center compliance

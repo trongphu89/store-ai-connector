@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * POD LLMS.txt Generator
  * Generate llms.txt file for AI crawlers (ChatGPT, Claude, Perplexity, Gemini)
