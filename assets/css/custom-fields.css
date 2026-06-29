@@ -1,0 +1,335 @@
+/**
+ * POD Custom Fields - Frontend Styles
+ * Modern, minimal design for custom fields form
+ */
+
+.pod-custom-fields-container {
+    margin: 16px 0;
+    padding: 16px;
+    background: linear-gradient(135deg, #fafafa 0%, #f5f5f5 100%);
+    border: 1px solid #e8e8e8;
+    border-radius: 12px;
+}
+
+.pod-custom-fields-title {
+    margin: 0 0 12px 0;
+    padding: 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pod-icon {
+    font-size: 14px;
+}
+
+.pod-custom-fields-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pod-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.pod-field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #555;
+}
+
+.pod-field label .required {
+    color: #e53935;
+    margin-left: 2px;
+}
+
+.pod-input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    background: white;
+}
+
+.pod-input:focus {
+    outline: none;
+    border-color: #7c4dff;
+    box-shadow: 0 0 0 3px rgba(124, 77, 255, 0.1);
+}
+
+.pod-input::placeholder {
+    color: #bdbdbd;
+}
+
+.pod-field-hint {
+    font-size: 11px;
+    color: #9e9e9e;
+}
+
+/* ========================================
+   File Upload - Compact Modern Design
+   ======================================== */
+.pod-file-upload-area {
+    position: relative;
+}
+
+.pod-file-input {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0;
+    cursor: pointer;
+    z-index: 2;
+}
+
+.pod-file-dropzone {
+    padding: 16px;
+    border: 1.5px dashed #d0d0d0;
+    border-radius: 10px;
+    text-align: center;
+    background: white;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.pod-file-upload-area:hover .pod-file-dropzone {
+    border-color: #7c4dff;
+    background: #faf8ff;
+}
+
+.pod-file-icon {
+    font-size: 20px;
+    opacity: 0.7;
+}
+
+.pod-file-text {
+    font-size: 13px;
+    font-weight: 500;
+    color: #666;
+}
+
+.pod-file-hint {
+    font-size: 11px;
+    color: #999;
+    margin-left: 4px;
+}
+
+.pod-file-hint::before {
+    content: "•";
+    margin-right: 4px;
+}
+
+/* File Preview - Compact */
+.pod-file-preview {
+    padding: 10px 12px;
+    background: white;
+    border: 1.5px solid #4caf50;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.pod-file-preview-img {
+    width: 40px;
+    height: 40px;
+    object-fit: cover;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.pod-file-name {
+    flex: 1;
+    font-size: 12px;
+    font-weight: 500;
+    color: #333;
+    word-break: break-all;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.pod-file-remove {
+    width: 24px;
+    height: 24px;
+    border: none;
+    background: #ef5350;
+    color: white;
+    border-radius: 50%;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.pod-file-remove:hover {
+    background: #d32f2f;
+    transform: scale(1.1);
+}
+
+/* Uploading State - Compact */
+.pod-file-uploading {
+    padding: 14px;
+    background: white;
+    border: 1.5px solid #7c4dff;
+    border-radius: 10px;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #7c4dff;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.pod-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e8e8e8;
+    border-top-color: #7c4dff;
+    border-radius: 50%;
+    animation: pod-spin 0.7s linear infinite;
+}
+
+@keyframes pod-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Admin Order Styles */
+.pod-custom-fields-header {
+    width: 120px;
+}
+
+.pod-custom-fields-cell {
+    font-size: 12px;
+}
+
+.pod-admin-field {
+    margin-bottom: 4px;
+}
+
+.pod-admin-file a {
+    color: #1976d2;
+    text-decoration: none;
+}
+
+.pod-admin-file a:hover {
+    text-decoration: underline;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+    .pod-custom-fields-container {
+        padding: 12px;
+    }
+    
+    .pod-file-dropzone {
+        flex-direction: column;
+        padding: 14px;
+        gap: 6px;
+    }
+    
+    .pod-file-hint::before {
+        display: none;
+    }
+}
+
+
+/* ========================================
+   Optional Personalization Toggle
+   ======================================== */
+.pod-optional-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    background: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
+}
+
+.pod-optional-toggle:hover {
+    border-color: #7c4dff;
+    background: #faf8ff;
+}
+
+.pod-optional-toggle input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    accent-color: #7c4dff;
+    cursor: pointer;
+}
+
+.pod-optional-toggle input[type="checkbox"]:checked + .pod-toggle-label {
+    color: #7c4dff;
+}
+
+.pod-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #555;
+    transition: color 0.2s ease;
+}
+
+.pod-toggle-icon {
+    font-size: 16px;
+}
+
+.pod-toggle-fee {
+    font-size: 12px;
+    font-weight: 500;
+    color: #7c4dff;
+    background: #f3e8ff;
+    padding: 2px 8px;
+    border-radius: 12px;
+}
+
+.pod-custom-fields-wrapper {
+    overflow: hidden;
+}
+
+/* When checkbox is checked, highlight container */
+.pod-custom-fields-container[data-optional="true"]:has(input:checked) {
+    border-color: #7c4dff;
+    background: linear-gradient(135deg, #faf8ff 0%, #f5f0ff 100%);
+}
+
+.pod-custom-fields-container[data-optional="true"]:has(input:checked) .pod-optional-toggle {
+    border-color: #7c4dff;
+    background: #7c4dff;
+}
+
+.pod-custom-fields-container[data-optional="true"]:has(input:checked) .pod-toggle-label {
+    color: white;
+}
+
+.pod-custom-fields-container[data-optional="true"]:has(input:checked) .pod-toggle-fee {
+    background: rgba(255,255,255,0.2);
+    color: white;
+}

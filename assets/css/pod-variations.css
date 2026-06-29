@@ -1,0 +1,387 @@
+/**
+ * POD Variations - Frontend Styles
+ * Modern minimal swatch UI for Style/Size/Color selection
+ */
+
+/* ========================================
+   "From $X" Price Display (Shop & Category pages)
+   ======================================== */
+.pod-var-from-price {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.pod-var-from-label {
+    font-size: 0.85em;
+    font-weight: 500;
+    color: #666;
+    text-transform: lowercase;
+}
+
+/* Shop/Archive page styling */
+.woocommerce ul.products li.product .pod-var-from-price {
+    font-size: 1em;
+}
+
+.woocommerce ul.products li.product .pod-var-from-label {
+    font-size: 0.8em;
+    color: #888;
+}
+
+/* Single product page - hide From price in summary (we show dynamic price instead) */
+body.pod-variations-active .summary .pod-var-from-price,
+body.pod-variations-active .entry-summary .pod-var-from-price {
+    display: none !important;
+}
+
+/* ========================================
+   Hide original WooCommerce price when POD Variations is active
+   ======================================== */
+body.pod-variations-active .summary > .price,
+body.pod-variations-active .summary > p.price,
+body.pod-variations-active .summary .price:not(.pod-var-price-amount),
+body.pod-variations-active .entry-summary > .price,
+body.pod-variations-active .entry-summary > p.price,
+body.pod-variations-active .entry-summary .price:not(.pod-var-price-amount),
+body.pod-variations-active .product-info > .price,
+body.pod-variations-active .product-info .price:not(.pod-var-price-amount),
+body.pod-variations-active .product_title + .price,
+body.pod-variations-active .woocommerce-product-details__short-description + .price,
+body.pod-variations-active .woocommerce div.product > .summary > .price,
+body.pod-variations-active .woocommerce div.product > .summary > p.price,
+body.pod-variations-active .woocommerce div.product .summary p.price:not(.pod-var-price-amount *),
+body.pod-variations-active .woocommerce div.product .summary span.price:not(.pod-var-price-amount *),
+body.pod-variations-active div.product .summary .price:not(.pod-var-price-display .price):not(.pod-var-price-amount),
+body.pod-variations-active div.product p.price:not(.pod-var-price-display p),
+body.pod-variations-active .single-product .price:not(.pod-var-price-amount):not(.pod-var-price-display .price),
+body.pod-variations-active .product .summary > p.price,
+body.pod-variations-active .product .entry-summary > p.price {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Keep price visible inside our custom display */
+.pod-var-price-display .woocommerce-Price-amount,
+.pod-var-price-amount .woocommerce-Price-amount {
+    display: inline !important;
+}
+
+/* ========================================
+   Main Container
+   ======================================== */
+.pod-variations-form {
+    margin: 20px 0;
+    padding: 0;
+}
+
+/* ========================================
+   Section Layout
+   ======================================== */
+.pod-var-section {
+    margin-bottom: 20px;
+}
+
+.pod-var-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-weight: 600;
+    font-size: 13px;
+    color: #1f2937;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pod-var-style-name-display,
+.pod-var-color-name-display {
+    font-weight: 400;
+    color: #6b7280;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.pod-var-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+/* ========================================
+   Style Swatches (Icon only - no text, no price)
+   ======================================== */
+.pod-var-style {
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border: 2px solid #e5e7eb;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.pod-var-style:hover {
+    border-color: #8b5cf6;
+    background: #faf5ff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(139, 92, 246, 0.15);
+}
+
+.pod-var-style.selected {
+    border-color: #8b5cf6;
+    background: #f5f3ff;
+    box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2);
+}
+
+.pod-var-style svg {
+    width: 100%;
+    height: 100%;
+    color: #6b7280;
+    transition: color 0.2s ease;
+}
+
+.pod-var-style:hover svg,
+.pod-var-style.selected svg {
+    color: #8b5cf6;
+}
+
+/* Style with letter fallback (no predefined icon) */
+.pod-var-style.pod-var-style-letter {
+    background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    border-color: #8b5cf6;
+}
+
+.pod-var-style.pod-var-style-letter:hover {
+    background: linear-gradient(135deg, #7c3aed 0%, #9333ea 100%);
+    border-color: #7c3aed;
+}
+
+.pod-var-style.pod-var-style-letter.selected {
+    background: linear-gradient(135deg, #6d28d9 0%, #7c3aed 100%);
+    border-color: #6d28d9;
+}
+
+.pod-var-style-letter-text {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+/* Hide any text/price elements in style swatches */
+.pod-var-style-text,
+.pod-var-style-name,
+.pod-var-style-price {
+    display: none !important;
+}
+
+/* ========================================
+   Size Swatches (Minimal text only)
+   ======================================== */
+.pod-var-size {
+    min-width: 44px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 14px;
+    background: #fff;
+    border: 2px solid #e5e7eb;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.pod-var-size:hover {
+    border-color: #3b82f6;
+    background: #eff6ff;
+    color: #2563eb;
+    transform: translateY(-1px);
+}
+
+.pod-var-size.selected {
+    border-color: #3b82f6;
+    background: #3b82f6;
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+}
+
+/* Hide upcharge display */
+.pod-var-size-upcharge {
+    display: none !important;
+}
+
+/* ========================================
+   Color Swatches
+   ======================================== */
+.pod-var-color {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: 3px solid #fff;
+    box-shadow: 0 0 0 1px #d1d5db;
+    position: relative;
+}
+
+.pod-var-color:hover {
+    transform: scale(1.15);
+    box-shadow: 0 0 0 2px #8b5cf6;
+}
+
+.pod-var-color.selected {
+    box-shadow: 0 0 0 2px #8b5cf6;
+    transform: scale(1.1);
+}
+
+.pod-var-color .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.pod-var-color-check {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 14px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+.pod-var-color.selected .pod-var-color-check {
+    opacity: 1;
+}
+
+/* Light colors need dark checkmark */
+.pod-var-color[data-hex="#FFFFFF"] .pod-var-color-check,
+.pod-var-color[data-hex="#ffffff"] .pod-var-color-check,
+.pod-var-color[data-hex="#FFC0CB"] .pod-var-color-check,
+.pod-var-color[data-hex="#ffc0cb"] .pod-var-color-check,
+.pod-var-color[data-hex="#ADD8E6"] .pod-var-color-check,
+.pod-var-color[data-hex="#add8e6"] .pod-var-color-check,
+.pod-var-color[data-hex="#FFEB3B"] .pod-var-color-check,
+.pod-var-color[data-hex="#ffeb3b"] .pod-var-color-check,
+.pod-var-color[data-hex="#F5F5DC"] .pod-var-color-check,
+.pod-var-color[data-hex="#f5f5dc"] .pod-var-color-check,
+.pod-var-color[data-hex="#FFFACD"] .pod-var-color-check,
+.pod-var-color[data-hex="#fffacd"] .pod-var-color-check,
+.pod-var-color[data-hex="#F0E68C"] .pod-var-color-check,
+.pod-var-color[data-hex="#f0e68c"] .pod-var-color-check,
+.pod-var-color[data-hex="#E6E6FA"] .pod-var-color-check,
+.pod-var-color[data-hex="#e6e6fa"] .pod-var-color-check,
+.pod-var-color[data-hex="#FFF0F5"] .pod-var-color-check,
+.pod-var-color[data-hex="#fff0f5"] .pod-var-color-check,
+.pod-var-color[data-hex="#FAFAD2"] .pod-var-color-check,
+.pod-var-color[data-hex="#fafad2"] .pod-var-color-check {
+    color: #374151;
+    text-shadow: none;
+}
+
+/* ========================================
+   Price Display
+   ======================================== */
+.pod-var-price-display {
+    margin-top: 24px;
+    padding: 16px 20px;
+    background: linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border: 1px solid rgba(139, 92, 246, 0.1);
+}
+
+.pod-var-price-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.pod-var-price-amount {
+    font-size: 26px;
+    font-weight: 700;
+    color: #7c3aed;
+}
+
+.pod-var-price-amount .woocommerce-Price-amount {
+    display: inline !important;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+}
+
+/* ========================================
+   Responsive Design
+   ======================================== */
+@media (max-width: 480px) {
+    .pod-var-style {
+        width: 42px;
+        height: 42px;
+    }
+    
+    .pod-var-size {
+        min-width: 38px;
+        height: 36px;
+        padding: 0 10px;
+        font-size: 12px;
+    }
+    
+    .pod-var-color {
+        width: 30px;
+        height: 30px;
+    }
+    
+    .pod-var-price-display {
+        padding: 12px 16px;
+    }
+    
+    .pod-var-price-amount {
+        font-size: 22px;
+    }
+    
+    .pod-var-label {
+        font-size: 12px;
+    }
+}
+
+/* ========================================
+   Focus States for Accessibility
+   ======================================== */
+.pod-var-swatch:focus {
+    outline: 2px solid #8b5cf6;
+    outline-offset: 2px;
+}
+
+.pod-var-swatch:focus:not(:focus-visible) {
+    outline: none;
+}
+
+.pod-var-swatch:focus-visible {
+    outline: 2px solid #8b5cf6;
+    outline-offset: 2px;
+}
