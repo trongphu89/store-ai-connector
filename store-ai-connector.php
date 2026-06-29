@@ -197,6 +197,20 @@ function sac_register_routes() {
         'permission_callback' => 'sac_verify',
     ) );
 
+    // Single product endpoint
+    register_rest_route( 'sac/v1', '/product/(?P<id>\d+)', array(
+        'methods'             => 'GET',
+        'callback'            => 'sac_get_product',
+        'permission_callback' => 'sac_verify_simple',
+    ) );
+
+    // Sync products endpoint (upsert: create or update by external_id)
+    register_rest_route( 'sac/v1', '/sync-products', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_sync_products',
+        'permission_callback' => 'sac_verify',
+    ) );
+
     register_rest_route( 'sac/v1', '/bulk-posts', array(
         'methods'             => 'POST',
         'callback'            => 'sac_bulk_posts',
@@ -965,6 +979,237 @@ function sac_bulk_delete( $request ) {
     }
 
     return rest_ensure_response( array( 'results' => $results ) );
+}
+
+/**
+ * Get single product by ID
+ */
+function sac_get_product( $request ) {
+    $product_id = absint( $request->get_param( 'id' ) );
+
+    if ( ! $product_id ) {
+        return new WP_Error( 'missing_id', 'Product ID is required', array( 'status' => 400 ) );
+    }
+
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        return new WP_Error( 'no_woo', 'WooCommerce not installed', array( 'status' => 400 ) );
+    }
+
+    $product = wc_get_product( $product_id );
+    if ( ! $product ) {
+        return new WP_Error( 'not_found', 'Product not found', array( 'status' => 404 ) );
+    }
+
+    return rest_ensure_response( sac_format_product( $product ) );
+}
+
+/**
+ * Format WC_Product into API response array
+ */
+function sac_format_product( $product ) {
+    $data = array(
+        'id'              => $product->get_id(),
+        'name'            => $product->get_name(),
+        'slug'            => $product->get_slug(),
+        'permalink'       => $product->get_permalink(),
+        'status'          => $product->get_status(),
+        'type'            => $product->get_type(),
+        'description'     => $product->get_description(),
+        'short_description' => $product->get_short_description(),
+        'sku'             => $product->get_sku(),
+        'price'           => $product->get_price(),
+        'regular_price'   => $product->get_regular_price(),
+        'sale_price'      => $product->get_sale_price(),
+        'stock_status'    => $product->get_stock_status(),
+        'stock_quantity'  => $product->get_stock_quantity(),
+        'manage_stock'    => $product->get_manage_stock(),
+        'featured'        => $product->get_featured(),
+        'catalog_visibility' => $product->get_catalog_visibility(),
+        'total_sales'     => $product->get_total_sales(),
+        'average_rating'  => $product->get_average_rating(),
+        'review_count'    => $product->get_review_count(),
+        'image_id'        => $product->get_image_id(),
+        'gallery_image_ids' => $product->get_gallery_image_ids(),
+        'category_ids'    => $product->get_category_ids(),
+        'tag_ids'         => $product->get_tag_ids(),
+        'date_created'    => $product->get_date_created() ? $product->get_date_created()->format( 'Y-m-d\TH:i:s' ) : null,
+        'date_modified'   => $product->get_date_modified() ? $product->get_date_modified()->format( 'Y-m-d\TH:i:s' ) : null,
+        'external_id'     => get_post_meta( $product->get_id(), '_external_id', true ),
+    );
+
+    return $data;
+}
+
+/**
+ * Sync products — upsert by external_id
+ *
+ * If external_id already exists, update the product.
+ * If external_id is new, create a new product.
+ */
+function sac_sync_products( $request ) {
+    @ini_set( 'memory_limit', '1024M' );
+    @ini_set( 'max_execution_time', 600 );
+    @set_time_limit( 600 );
+
+    $params    = $request->get_json_params();
+    $products  = isset( $params['products'] ) ? $params['products'] : array();
+
+    if ( empty( $products ) || ! is_array( $products ) ) {
+        return new WP_Error( 'missing_products', 'products array is required', array( 'status' => 400 ) );
+    }
+
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        return new WP_Error( 'no_woo', 'WooCommerce not installed', array( 'status' => 400 ) );
+    }
+
+    $results = array(
+        'created' => 0,
+        'updated' => 0,
+        'failed'  => 0,
+        'items'   => array(),
+    );
+
+    foreach ( $products as $data ) {
+        $external_id = isset( $data['external_id'] ) ? sanitize_text_field( $data['external_id'] ) : '';
+        $product_id  = 0;
+
+        // Look up by external_id if provided
+        if ( ! empty( $external_id ) ) {
+            $found = sac_find_product_by_external_id( $external_id );
+            if ( $found ) {
+                $product_id = $found;
+            }
+        }
+
+        try {
+            if ( $product_id > 0 ) {
+                // UPDATE existing product
+                $product = wc_get_product( $product_id );
+                if ( ! $product ) {
+                    throw new Exception( 'Product not found' );
+                }
+                $action = 'updated';
+            } else {
+                // CREATE new product
+                $product = new WC_Product_Simple();
+                $action = 'created';
+            }
+
+            // Apply field updates
+            if ( isset( $data['name'] ) ) {
+                $product->set_name( sanitize_text_field( $data['name'] ) );
+            }
+            if ( isset( $data['description'] ) ) {
+                $product->set_description( wp_kses_post( $data['description'] ) );
+            }
+            if ( isset( $data['short_description'] ) ) {
+                $product->set_short_description( wp_kses_post( $data['short_description'] ) );
+            }
+            if ( isset( $data['regular_price'] ) ) {
+                $product->set_regular_price( sanitize_text_field( $data['regular_price'] ) );
+            }
+            if ( isset( $data['sale_price'] ) ) {
+                $product->set_sale_price( sanitize_text_field( $data['sale_price'] ) );
+            }
+            if ( isset( $data['status'] ) ) {
+                $product->set_status( sanitize_text_field( $data['status'] ) );
+            }
+            if ( isset( $data['sku'] ) ) {
+                $product->set_sku( sanitize_text_field( $data['sku'] ) );
+            }
+            if ( isset( $data['stock_quantity'] ) ) {
+                $product->set_stock_quantity( intval( $data['stock_quantity'] ) );
+            }
+            if ( isset( $data['manage_stock'] ) ) {
+                $product->set_manage_stock( (bool) $data['manage_stock'] );
+            }
+            if ( isset( $data['stock_status'] ) ) {
+                $product->set_stock_status( sanitize_text_field( $data['stock_status'] ) );
+            }
+
+            $saved_id = $product->save();
+
+            // Always save external_id if provided
+            if ( ! empty( $external_id ) ) {
+                update_post_meta( $saved_id, '_external_id', $external_id );
+            }
+
+            // Categories
+            if ( isset( $data['category_ids'] ) && is_array( $data['category_ids'] ) ) {
+                $product->set_category_ids( array_map( 'absint', $data['category_ids'] ) );
+                $product->save();
+            } elseif ( ! empty( $data['category_name'] ) && taxonomy_exists( 'product_cat' ) ) {
+                $cat_name  = sanitize_text_field( $data['category_name'] );
+                $existing  = get_term_by( 'name', $cat_name, 'product_cat' );
+                if ( $existing ) {
+                    $product->set_category_ids( array( (int) $existing->term_id ) );
+                } else {
+                    $new_cat = wp_insert_term( $cat_name, 'product_cat' );
+                    if ( ! is_wp_error( $new_cat ) ) {
+                        $product->set_category_ids( array( (int) $new_cat['term_id'] ) );
+                    }
+                }
+                $product->save();
+            }
+
+            // Gallery images
+            if ( isset( $data['gallery_image_ids'] ) && is_array( $data['gallery_image_ids'] ) ) {
+                $ids = array_map( 'absint', $data['gallery_image_ids'] );
+                $product->set_gallery_image_ids( $ids );
+                $product->save();
+            }
+
+            // Featured image
+            if ( isset( $data['image_id'] ) ) {
+                $product->set_image_id( absint( $data['image_id'] ) );
+                $product->save();
+            }
+
+            // Arbitrary meta_data
+            if ( isset( $data['meta_data'] ) && is_array( $data['meta_data'] ) ) {
+                foreach ( $data['meta_data'] as $meta ) {
+                    if ( isset( $meta['key'], $meta['value'] ) ) {
+                        update_post_meta( $saved_id, sanitize_key( $meta['key'] ), $meta['value'] );
+                    }
+                }
+            }
+
+            if ( $action === 'created' ) {
+                $results['created']++;
+            } else {
+                $results['updated']++;
+            }
+
+            $results['items'][] = array(
+                'success'      => true,
+                'action'      => $action,
+                'external_id'  => $external_id,
+                'product_id'   => $saved_id,
+                'permalink'    => get_permalink( $saved_id ),
+            );
+        } catch ( Exception $e ) {
+            $results['failed']++;
+            $results['items'][] = array(
+                'success'     => false,
+                'external_id' => $external_id,
+                'error'       => $e->getMessage(),
+            );
+        }
+    }
+
+    return rest_ensure_response( $results );
+}
+
+/**
+ * Find product ID by _external_id meta
+ */
+function sac_find_product_by_external_id( $external_id ) {
+    global $wpdb;
+    $product_id = $wpdb->get_var( $wpdb->prepare(
+        "SELECT post_id FROM {$wpdb->postmeta} WHERE meta_key = '_external_id' AND meta_value = %s LIMIT 1",
+        $external_id
+    ) );
+    return $product_id ? (int) $product_id : 0;
 }
 
 /**
