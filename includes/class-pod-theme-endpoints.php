@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * POD Theme Endpoints
  *

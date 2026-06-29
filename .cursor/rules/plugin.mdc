@@ -1,0 +1,70 @@
+---
+description: Store AI Connector WordPress Plugin Rules
+globs: ["**/*.php", "**/*.js"]
+alwaysApply: true
+---
+
+# Project: store-ai-connector Plugin
+
+## Tổng quan
+PHP WordPress plugin. Fork từ pod-ai-connector.
+Mục đích: REST API cho Store Management System kết nối và điều khiển WP stores.
+Plugin được cài trên mỗi WordPress store riêng lẻ.
+
+## Stack
+- PHP 8.2
+- WordPress 6.x + WooCommerce
+- REST API namespace: sac/v1
+- Auth: HMAC-SHA256
+
+## Quy tắc PHP bắt buộc
+- Prefix tất cả functions/constants/hooks: sac_
+- Mọi PHP file bắt đầu: if ( ! defined( 'ABSPATH' ) ) exit;
+- Sanitize input: sanitize_text_field(), intval(), absint(), wp_kses_post(), esc_url_raw()
+- Escape output: esc_html(), esc_url(), wp_json_encode()
+- KHÔNG dùng PHP short tags <?
+
+## REST API rules
+- Namespace: 'sac/v1'
+- Protected endpoints: permission_callback => 'sac_verify'
+- Public endpoints: permission_callback => '__return_true'
+- Luôn return rest_ensure_response() — KHÔNG return raw array
+- HMAC signature: SHA256(timestamp + METHOD + /wp-json/sac/v1 + route + body)
+- Reject nếu |time() - timestamp| > 300 giây
+
+## Security rules (TUYỆT ĐỐI)
+- KHÔNG BAO GIỜ thêm wp_remote_post/get gọi domain ngoài
+- KHÔNG log API key, secret, hoặc signature
+- Không phone-home, không analytics gọi ra ngoài
+
+## WooCommerce rules
+- Kiểm tra class_exists('WooCommerce') trước mọi WC function
+- Dùng wc_get_orders() — KHÔNG dùng WP_Query trực tiếp
+- Status SET (update_status): KHÔNG có 'wc-' prefix
+- Status QUERY (wc_get_orders args): CÓ 'wc-' prefix
+
+## File organization
+- Route registration: chỉ trong store-ai-connector.php
+- Order logic: includes/class-sac-orders.php (class SAC_Orders, static methods)
+- Không sửa logic gốc trong các file includes/ khác
+
+## Endpoints hiện có (GIỮ NGUYÊN)
+health, bulk-fetch, bulk-upload, bulk-products, bulk-update, bulk-delete,
+bulk-posts, create-category, create-variable-product, update-post,
+upload-media, create-page, assign-custom-fields, update-product-gallery
+
+## Endpoints MỚI (cần thêm)
+POST /setup-flatsome      - setup Flatsome theme toàn bộ
+
+## Endpoints Orders (đã triển khai)
+GET  /orders              - list orders với filter + pagination
+GET  /order/{id}          - chi tiết 1 order
+POST /update-order-status - cập nhật status
+POST /add-tracking        - thêm tracking number
+GET  /order-stats         - revenue stats theo period
+POST /bulk-update-orders  - bulk update nhiều orders
+GET  /get-woo-page-ids    - lấy WC default page IDs
+
+## Endpoints Products (đã triển khai)
+GET  /product/{id}        - chi tiết 1 sản phẩm
+POST /sync-products       - upsert sản phẩm theo external_id (tạo mới hoặc cập nhật)

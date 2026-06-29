@@ -1,0 +1,9 @@
+{
+  "name": "store-ai-connector-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node test-endpoints.js",
+    "audit": "node -e \"import('./test-audit.mjs')\""
+  }
+}
