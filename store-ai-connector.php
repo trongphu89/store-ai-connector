@@ -197,6 +197,12 @@ function sac_register_routes() {
         'permission_callback' => 'sac_verify',
     ) );
 
+    register_rest_route( 'sac/v1', '/bulk-products-update', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_bulk_products_update',
+        'permission_callback' => 'sac_verify_api_key',
+    ) );
+
     // Single product endpoint
     register_rest_route( 'sac/v1', '/product/(?P<id>\d+)', array(
         'methods'             => 'GET',
@@ -1041,6 +1047,142 @@ function sac_format_product( $product ) {
 }
 
 /**
+ * Build or update a WC product from payload fields
+ */
+function sac_build_wc_product_from_payload( $data ) {
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        throw new Exception( 'WooCommerce not installed' );
+    }
+
+    $product_id = isset( $data['id'] ) ? absint( $data['id'] ) : 0;
+    if ( ! $product_id ) {
+        throw new Exception( 'Missing product ID' );
+    }
+
+    $product = wc_get_product( $product_id );
+    if ( ! $product ) {
+        throw new Exception( 'Product not found' );
+    }
+
+    if ( isset( $data['name'] ) ) {
+        $product->set_name( sanitize_text_field( $data['name'] ) );
+    }
+    if ( isset( $data['description'] ) ) {
+        $product->set_description( wp_kses_post( $data['description'] ) );
+    }
+    if ( isset( $data['short_description'] ) ) {
+        $product->set_short_description( wp_kses_post( $data['short_description'] ) );
+    }
+    if ( isset( $data['regular_price'] ) ) {
+        $product->set_regular_price( sanitize_text_field( $data['regular_price'] ) );
+    }
+    if ( isset( $data['sale_price'] ) ) {
+        $product->set_sale_price( sanitize_text_field( $data['sale_price'] ) );
+    }
+    if ( isset( $data['status'] ) ) {
+        $product->set_status( sanitize_text_field( $data['status'] ) );
+    }
+    if ( isset( $data['sku'] ) ) {
+        $product->set_sku( sanitize_text_field( $data['sku'] ) );
+    }
+    if ( isset( $data['stock_quantity'] ) ) {
+        $product->set_stock_quantity( intval( $data['stock_quantity'] ) );
+    }
+    if ( isset( $data['manage_stock'] ) ) {
+        $product->set_manage_stock( (bool) $data['manage_stock'] );
+    }
+    if ( isset( $data['stock_status'] ) ) {
+        $product->set_stock_status( sanitize_text_field( $data['stock_status'] ) );
+    }
+    if ( isset( $data['featured'] ) ) {
+        $product->set_featured( (bool) $data['featured'] );
+    }
+    if ( isset( $data['catalog_visibility'] ) ) {
+        $product->set_catalog_visibility( sanitize_text_field( $data['catalog_visibility'] ) );
+    }
+    if ( ! empty( $data['category_ids'] ) && is_array( $data['category_ids'] ) && taxonomy_exists( 'product_cat' ) ) {
+        $product->set_category_ids( array_map( 'intval', $data['category_ids'] ) );
+    } elseif ( ! empty( $data['category_name'] ) && taxonomy_exists( 'product_cat' ) ) {
+        $cat_name = sanitize_text_field( $data['category_name'] );
+        $existing = get_term_by( 'name', $cat_name, 'product_cat' );
+        if ( $existing ) {
+            $product->set_category_ids( array( (int) $existing->term_id ) );
+        } else {
+            $new_cat = wp_insert_term( $cat_name, 'product_cat' );
+            if ( ! is_wp_error( $new_cat ) ) {
+                $product->set_category_ids( array( (int) $new_cat['term_id'] ) );
+            }
+        }
+    }
+    if ( isset( $data['gallery_image_ids'] ) && is_array( $data['gallery_image_ids'] ) ) {
+        $product->set_gallery_image_ids( array_map( 'intval', $data['gallery_image_ids'] ) );
+    }
+    if ( isset( $data['image_id'] ) ) {
+        $product->set_image_id( absint( $data['image_id'] ) );
+    }
+    if ( ! empty( $data['tag_ids'] ) && is_array( $data['tag_ids'] ) ) {
+        wp_set_object_terms( $product->get_id(), array_map( 'intval', $data['tag_ids'] ), 'product_tag' );
+    }
+    if ( ! empty( $data['meta_data'] ) && is_array( $data['meta_data'] ) ) {
+        foreach ( $data['meta_data'] as $meta ) {
+            if ( isset( $meta['key'], $meta['value'] ) ) {
+                update_post_meta( $product->get_id(), sanitize_key( $meta['key'] ), $meta['value'] );
+            }
+        }
+    }
+
+    $saved_id = $product->save();
+
+    if ( function_exists( 'wc_delete_product_transients' ) ) {
+        wc_delete_product_transients( $saved_id );
+    }
+    wp_cache_delete( 'product-' . $saved_id, 'products' );
+
+    return $saved_id;
+}
+
+/**
+ * Bulk products update by product IDs
+ */
+function sac_bulk_products_update( $request ) {
+    @ini_set( 'memory_limit', '1024M' );
+    @ini_set( 'max_execution_time', 600 );
+    @set_time_limit( 600 );
+
+    $params  = $request->get_json_params();
+    $products = isset( $params['products'] ) ? $params['products'] : array();
+    $results = array();
+
+    if ( empty( $products ) || ! is_array( $products ) ) {
+        return rest_ensure_response( array( 'results' => $results ) );
+    }
+
+    foreach ( $products as $product_data ) {
+        $item = array(
+            'success' => false,
+            'id'      => isset( $product_data['id'] ) ? absint( $product_data['id'] ) : 0,
+        );
+
+        if ( empty( $item['id'] ) ) {
+            $item['error'] = 'id required for update';
+            $results[]    = $item;
+            continue;
+        }
+
+        try {
+            $item['product_id'] = sac_build_wc_product_from_payload( $product_data );
+            $item['success']    = true;
+        } catch ( Exception $e ) {
+            $item['error'] = $e->getMessage();
+        }
+
+        $results[] = $item;
+    }
+
+    return rest_ensure_response( array( 'results' => $results ) );
+}
+
+/**
  * Sync products — upsert by external_id
  *
  * If external_id already exists, update the product.
@@ -1436,6 +1578,13 @@ function sac_verify_simple( $request ) {
     }
     
     return true;
+}
+
+/**
+ * Alias for simple API key verification
+ */
+function sac_verify_api_key( $request ) {
+    return sac_verify_simple( $request );
 }
 
 /**
