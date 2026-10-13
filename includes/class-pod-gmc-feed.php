@@ -534,6 +534,7 @@ class POD_GMC_Feed {
         echo '<g:price>' . esc_html( $data['price'] ) . '</g:price>' . "\n";
         echo '<g:availability>' . esc_html( $data['availability'] ) . '</g:availability>' . "\n";
         echo '<g:condition>' . esc_html( $data['condition'] ) . '</g:condition>' . "\n";
+        echo '<g:identifier_exists>no</g:identifier_exists>' . "\n";
         
         // Image
         if ( ! empty( $data['image_link'] ) ) {

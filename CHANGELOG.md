@@ -1,5 +1,10 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.3 - 2026-10-13
+
+### Fixed
+- Feed: added g:identifier_exists (no) for GMC compliance.
+
 ## Version 2.1.2 - 2026-10-13
 
 ### Fixed
