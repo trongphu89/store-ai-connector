@@ -1,5 +1,11 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.1 - 2026-10-13
+
+### Fixed
+- 19.2.1: /bulk-delete only deletes attachments when force=true AND not used elsewhere.
+- 19.2.2: /upsert-page only accepts publish/draft/private status.
+
 ## Version 2.1.0 - 2026-10-13
 
 ### New REST endpoints (sac/v1)
@@ -12,7 +18,7 @@
 - `/bulk-delete`: `force` param (default false = trash).
 - Feed: `include_all_products` from `pod_gmc_feed_include_all`.
 
-## Version 2.4.0 - 2026-06-04
+## Version 2.4.0 - 2026-06-04 (old numbering, actual header was 2.0.0)
 
 ### ✨ Multi-Preset Custom Fields
 

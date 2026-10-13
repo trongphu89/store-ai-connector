@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management and GMC setup.
- * Version:     2.1.0
+ * Version:     2.1.1
  * Author:      Your Name
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -12,7 +12,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SAC_VERSION',           '2.1.0' );
+define( 'SAC_VERSION',           '2.1.1' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( __FILE__ ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -511,11 +511,13 @@ function sac_upsert_page( $request ) {
     $slug = sanitize_title( $p['slug'] ?? '' );
     if ( ! $slug ) return new WP_Error( 'missing_slug', 'slug required', array( 'status' => 400 ) );
     $existing = get_page_by_path( $slug, OBJECT, 'page' );
+    $status = $p['status'] ?? 'publish';
+    if ( ! in_array( $status, array( 'publish', 'draft', 'private' ), true ) ) $status = 'draft';
     $data = array(
         'post_title'   => sanitize_text_field( $p['title'] ?? $slug ),
         'post_name'    => $slug,
         'post_content' => $p['content'] ?? '',
-        'post_status'  => $p['status'] ?? 'publish',
+        'post_status'  => $status,
         'post_type'    => 'page',
     );
     if ( $existing ) { $data['ID'] = $existing->ID; $id = wp_update_post( $data, true ); $action = 'updated'; }
@@ -1015,6 +1017,18 @@ function sac_bulk_update( $request ) {
 /**
  * Bulk delete
  */
+function sac_attachment_in_use( $att_id ) {
+    global $wpdb;
+    $c = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_thumbnail_id' AND meta_value = %d",
+        $att_id ) );
+    if ( $c > 0 ) return true;
+    $c = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_product_image_gallery' AND meta_value LIKE %s",
+        '%"' . $att_id . '"%' ) );
+    return $c > 0;
+}
+
 function sac_bulk_delete( $request ) {
     $params  = $request->get_json_params();
     $results = array();
@@ -1030,11 +1044,16 @@ function sac_bulk_delete( $request ) {
                 $gallery  = $product->get_gallery_image_ids();
                 $product->delete( $force );
 
-                if ( $image_id ) {
-                    wp_delete_attachment( $image_id, $force );
-                }
-                foreach ( $gallery as $gid ) {
-                    wp_delete_attachment( $gid, $force );
+                // 19.2.1: delete attachments only when force=true AND not used elsewhere
+                if ( $force ) {
+                    if ( $image_id && ! sac_attachment_in_use( $image_id ) ) {
+                        wp_delete_attachment( $image_id, true );
+                    }
+                    foreach ( $gallery as $gid ) {
+                        if ( ! sac_attachment_in_use( $gid ) ) {
+                            wp_delete_attachment( $gid, true );
+                        }
+                    }
                 }
                 $results['products'][] = array( 'id' => $id, 'success' => true );
             } else {
