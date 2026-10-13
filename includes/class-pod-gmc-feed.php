@@ -275,6 +275,22 @@ class POD_GMC_Feed {
                 'shipping'          => $this->get_shipping_data( $settings, $currency ),
                 'return_policy_url' => $return_policy_url,
             ) );
+        } elseif ( $product->is_type( 'variable' ) ) {
+            // 22.2.2: WC_Product_Variable - each variation 1 item
+            $this->output_wc_variation_items( $product, $settings, array(
+                'title'             => $product_title,
+                'description'       => $product_desc,
+                'sku'               => $product_sku,
+                'image'             => $product_image,
+                'brand'             => $brand,
+                'google_category'   => $google_category,
+                'base_url'          => $base_url,
+                'currency'          => $currency,
+                'gender'            => $settings['default_gender'],
+                'age_group'         => $settings['default_age_group'],
+                'shipping'          => $this->get_shipping_data( $settings, $currency ),
+                'return_policy_url' => $return_policy_url,
+            ) );
         } else {
             // Simple product without POD Variations
             $product_price = floatval( $product->get_price() );
@@ -500,6 +516,67 @@ class POD_GMC_Feed {
             }
         }
     }
+    /**
+     * 22.2.2: Output WC_Product_Variable variation items
+     */
+    private function output_wc_variation_items( $product, $settings, $base_data ) {
+        $variations = $product->get_available_variations();
+        if ( empty( $variations ) ) return;
+        $parent_sku = $base_data['sku'];
+        $currency = $base_data['currency'];
+        foreach ( $variations as $var ) {
+            $var_id = $var['variation_id'];
+            $variation = wc_get_product( $var_id );
+            if ( ! $variation ) continue;
+            $var_sku = $variation->get_sku() ?: 'var-' . $var_id;
+            $price = floatval( $variation->get_price() );
+            if ( $price <= 0 ) continue;
+            $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
+            $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
+            $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
+            $img_id = $variation->get_image_id() ?: $product->get_image_id();
+            $image = $img_id ? wp_get_attachment_url( $img_id ) : $base_data['image'];
+            $link = add_query_arg( 'variation_id', $var_id, $base_data['base_url'] );
+            $gtin_data = $this->get_gtin_mpn( $var_id );
+            $item = array(
+                'id' => $var_sku,
+                'item_group_id' => $parent_sku,
+                'title' => $base_data['title'],
+                'description' => $base_data['description'],
+                'link' => $link,
+                'image_link' => $image,
+                'price' => number_format( $price, 2, '.', '' ) . ' ' . $currency,
+                'availability' => $stock,
+                'condition' => 'new',
+                'brand' => $base_data['brand'],
+                'google_product_category' => $base_data['google_category'],
+                'gender' => $base_data['gender'],
+                'age_group' => $base_data['age_group'],
+                'shipping' => $base_data['shipping'],
+                'return_policy_url' => $base_data['return_policy_url'],
+            );
+            if ( $size ) $item['size'] = $size;
+            if ( $color ) $item['color'] = $color;
+            if ( ! empty( $gtin_data['gtin'] ) ) {
+                $item['gtin'] = $gtin_data['gtin'];
+            } elseif ( ! empty( $gtin_data['mpn'] ) ) {
+                $item['mpn'] = $gtin_data['mpn'];
+            } else {
+                $item['identifier_exists'] = 'no';
+            }
+            $this->output_item( $item );
+        }
+    }
+
+    /**
+     * 22.2.4: Get GTIN/MPN from meta
+     */
+    private function get_gtin_mpn( $product_id ) {
+        $gtin = get_post_meta( $product_id, '_global_unique_id', true );
+        if ( ! $gtin ) $gtin = get_post_meta( $product_id, '_gtin', true );
+        $mpn = get_post_meta( $product_id, '_mpn', true );
+        return array( 'gtin' => $gtin, 'mpn' => $mpn );
+    }
     
     /**
      * Get shipping data for feed
@@ -534,7 +611,14 @@ class POD_GMC_Feed {
         echo '<g:price>' . esc_html( $data['price'] ) . '</g:price>' . "\n";
         echo '<g:availability>' . esc_html( $data['availability'] ) . '</g:availability>' . "\n";
         echo '<g:condition>' . esc_html( $data['condition'] ) . '</g:condition>' . "\n";
-        echo '<g:identifier_exists>no</g:identifier_exists>' . "\n";
+        // 22.2.4: GTIN/MPN or identifier_exists
+        if ( ! empty( $data['gtin'] ) ) {
+            echo '<g:gtin>' . esc_html( $data['gtin'] ) . '</g:gtin>' . "\n";
+        } elseif ( ! empty( $data['mpn'] ) ) {
+            echo '<g:mpn>' . esc_html( $data['mpn'] ) . '</g:mpn>' . "\n";
+        } else {
+            echo '<g:identifier_exists>no</g:identifier_exists>' . "\n";
+        }
         
         // Image
         if ( ! empty( $data['image_link'] ) ) {

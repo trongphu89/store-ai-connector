@@ -1,5 +1,11 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.4 - 2026-10-13
+
+### New
+- 22.2.2: Feed supports WC_Product_Variable - each variation 1 item with size/color, item_group_id.
+- 22.2.4: GTIN/MPN from _global_unique_id/_gtin/_mpn meta; identifier_exists=no only when no GTIN/MPN.
+
 ## Version 2.1.3 - 2026-10-13
 
 ### Fixed
