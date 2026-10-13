@@ -1,5 +1,17 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.0 - 2026-10-13
+
+### New REST endpoints (sac/v1)
+- `POST /site-settings`, `POST /upsert-page`, `POST /rename-term`.
+
+### Schema filters
+- `pod_seo_output_organization`, `pod_seo_organization_schema`, `pod_seo_output_product`.
+
+### Other
+- `/bulk-delete`: `force` param (default false = trash).
+- Feed: `include_all_products` from `pod_gmc_feed_include_all`.
+
 ## Version 2.4.0 - 2026-06-04
 
 ### ✨ Multi-Preset Custom Fields

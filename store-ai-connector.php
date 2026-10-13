@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management and GMC setup.
- * Version:     2.0.0
+ * Version:     2.1.0
  * Author:      Your Name
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -12,7 +12,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SAC_VERSION',           '2.0.0' );
+define( 'SAC_VERSION',           '2.1.0' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( __FILE__ ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -165,6 +165,21 @@ function sac_register_routes() {
         'methods'             => 'GET',
         'callback'            => 'sac_health',
         'permission_callback' => '__return_true',
+    ) );
+    register_rest_route( 'sac/v1', '/site-settings', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_site_settings',
+        'permission_callback' => 'sac_verify',
+    ) );
+    register_rest_route( 'sac/v1', '/upsert-page', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_upsert_page',
+        'permission_callback' => 'sac_verify',
+    ) );
+    register_rest_route( 'sac/v1', '/rename-term', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_rename_term',
+        'permission_callback' => 'sac_verify',
     ) );
 
     register_rest_route( 'sac/v1', '/bulk-fetch', array(
@@ -471,6 +486,58 @@ function sac_health( $request ) {
         'woocommerce' => $has_woo,
         'timestamp'   => time(),
     ) );
+}
+
+function sac_site_settings( $request ) {
+    $p = $request->get_json_params();
+    $updated = array();
+    if ( isset( $p['blogname'] ) ) {
+        update_option( 'blogname', sanitize_text_field( $p['blogname'] ) );
+        $updated[] = 'blogname';
+    }
+    if ( isset( $p['blogdescription'] ) ) {
+        update_option( 'blogdescription', sanitize_text_field( $p['blogdescription'] ) );
+        $updated[] = 'blogdescription';
+    }
+    if ( isset( $p['include_all_products'] ) ) {
+        update_option( 'pod_gmc_feed_include_all', $p['include_all_products'] ? 1 : 0 );
+        $updated[] = 'include_all_products';
+    }
+    return rest_ensure_response( array( 'success' => true, 'updated' => $updated ) );
+}
+
+function sac_upsert_page( $request ) {
+    $p = $request->get_json_params();
+    $slug = sanitize_title( $p['slug'] ?? '' );
+    if ( ! $slug ) return new WP_Error( 'missing_slug', 'slug required', array( 'status' => 400 ) );
+    $existing = get_page_by_path( $slug, OBJECT, 'page' );
+    $data = array(
+        'post_title'   => sanitize_text_field( $p['title'] ?? $slug ),
+        'post_name'    => $slug,
+        'post_content' => $p['content'] ?? '',
+        'post_status'  => $p['status'] ?? 'publish',
+        'post_type'    => 'page',
+    );
+    if ( $existing ) { $data['ID'] = $existing->ID; $id = wp_update_post( $data, true ); $action = 'updated'; }
+    else { $id = wp_insert_post( $data, true ); $action = 'created'; }
+    if ( is_wp_error( $id ) ) return $id;
+    return rest_ensure_response( array( 'success' => true, 'action' => $action, 'id' => $id ) );
+}
+
+function sac_rename_term( $request ) {
+    $p = $request->get_json_params();
+    $taxonomy = sanitize_key( $p['taxonomy'] ?? '' );
+    if ( ! $taxonomy || ! taxonomy_exists( $taxonomy ) ) return new WP_Error( 'bad_taxonomy', 'invalid', array( 'status' => 400 ) );
+    $term = null;
+    if ( ! empty( $p['term_id'] ) ) $term = get_term( (int) $p['term_id'], $taxonomy );
+    elseif ( ! empty( $p['slug'] ) ) $term = get_term_by( 'slug', sanitize_title( $p['slug'] ), $taxonomy );
+    if ( ! $term || is_wp_error( $term ) ) return new WP_Error( 'not_found', 'not found', array( 'status' => 404 ) );
+    $args = array();
+    if ( isset( $p['name'] ) ) $args['name'] = sanitize_text_field( $p['name'] );
+    if ( isset( $p['new_slug'] ) ) $args['slug'] = sanitize_title( $p['new_slug'] );
+    $r = wp_update_term( $term->term_id, $taxonomy, $args );
+    if ( is_wp_error( $r ) ) return $r;
+    return rest_ensure_response( array( 'success' => true, 'term_id' => $term->term_id ) );
 }
 
 
@@ -951,6 +1018,7 @@ function sac_bulk_update( $request ) {
 function sac_bulk_delete( $request ) {
     $params  = $request->get_json_params();
     $results = array();
+    $force = ! empty( $params['force'] );
 
     // Delete products
     if ( ! empty( $params['product_ids'] ) && function_exists( 'wc_get_product' ) ) {
@@ -960,13 +1028,13 @@ function sac_bulk_delete( $request ) {
             if ( $product ) {
                 $image_id = $product->get_image_id();
                 $gallery  = $product->get_gallery_image_ids();
-                $product->delete( true );
+                $product->delete( $force );
 
                 if ( $image_id ) {
-                    wp_delete_attachment( $image_id, true );
+                    wp_delete_attachment( $image_id, $force );
                 }
                 foreach ( $gallery as $gid ) {
-                    wp_delete_attachment( $gid, true );
+                    wp_delete_attachment( $gid, $force );
                 }
                 $results['products'][] = array( 'id' => $id, 'success' => true );
             } else {
@@ -979,7 +1047,7 @@ function sac_bulk_delete( $request ) {
     if ( ! empty( $params['post_ids'] ) ) {
         $results['posts'] = array();
         foreach ( $params['post_ids'] as $id ) {
-            $deleted = wp_delete_post( $id, true );
+            $deleted = wp_delete_post( $id, $force );
             $results['posts'][] = array( 'id' => $id, 'success' => (bool) $deleted );
         }
     }

@@ -658,7 +658,7 @@ class POD_GMC_Feed {
         }
 
         return array(
-            'include_all_products'      => get_option( 'pod_gmc_include_all', false ),
+            'include_all_products'      => ( get_option( 'pod_gmc_include_all', false ) || get_option( 'pod_gmc_feed_include_all', false ) ),
             'include_additional_images' => get_option( 'pod_gmc_include_additional_images', false ),
             'variation_mode'            => get_option( 'pod_gmc_variation_mode', 'all' ), // 'all' | 'first_only'
             'included_categories'       => $included_categories, // [] = all categories
