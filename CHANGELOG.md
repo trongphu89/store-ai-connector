@@ -1,4 +1,11 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.7 - 2026-10-13 - DO NOT USE
+
+**Bản lỗi, không phát hành.** Sửa sai hướng: bỏ hẳn item Apparel không có size → feed rỗng với store may mặc. Đã thay bằng 2.1.8.
+
+## Version 2.1.8 - 2026-10-13
+
+Khi nhánh POD không có sizes: lấy size/color từ attribute sản phẩm (pa_size/size, pa_color/color), xuất 1 item cho mỗi tổ hợp: id = <SKU>-<size>-<color>, item_group_id = SKU cha, giá cha, link ?attribute_size=…&attribute_color=…. Không bỏ item nào.
 
 ## Version 2.1.6 - 2026-10-13
 
