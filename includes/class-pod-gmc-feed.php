@@ -522,21 +522,24 @@ class POD_GMC_Feed {
     private function output_wc_variation_items( $product, $settings, $base_data ) {
         $variations = $product->get_available_variations();
         if ( empty( $variations ) ) return;
-        $parent_sku = $base_data['sku'];
+        $parent_sku = $base_data['sku'] ?: 'product-' . $product->get_id(); // B2
         $currency = $base_data['currency'];
         foreach ( $variations as $var ) {
             $var_id = $var['variation_id'];
             $variation = wc_get_product( $var_id );
             if ( ! $variation ) continue;
             $var_sku = $variation->get_sku() ?: 'var-' . $var_id;
-            $price = floatval( $variation->get_price() );
+            $regular = floatval( $variation->get_regular_price() );
+            $sale = floatval( $variation->get_sale_price() );
+            $price = $regular > 0 ? $regular : floatval( $variation->get_price() ); // B3
+            $is_sale = ( $sale > 0 && $sale < $regular );
             if ( $price <= 0 ) continue;
             $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
             $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
             $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
             $img_id = $variation->get_image_id() ?: $product->get_image_id();
             $image = $img_id ? wp_get_attachment_url( $img_id ) : $base_data['image'];
-            $link = add_query_arg( 'variation_id', $var_id, $base_data['base_url'] );
+            $link = $variation->get_permalink(); // B1
             $gtin_data = $this->get_gtin_mpn( $var_id );
             $item = array(
                 'id' => $var_sku,
@@ -546,6 +549,7 @@ class POD_GMC_Feed {
                 'link' => $link,
                 'image_link' => $image,
                 'price' => number_format( $price, 2, '.', '' ) . ' ' . $currency,
+                'sale_price' => isset($is_sale) && $is_sale ? number_format( $sale, 2, '.', '' ) . ' ' . $currency : '',
                 'availability' => $stock,
                 'condition' => 'new',
                 'brand' => $base_data['brand'],
