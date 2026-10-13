@@ -1,5 +1,9 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.6 - 2026-10-13
+
+B3: output_item prints g:sale_price; regular/sale for simple branch. B4: GTIN/MPN for simple. B5: variation_title().
+
 ## Version 2.1.5 - 2026-10-13
 
 B1: variation link uses get_permalink(). B2: item_group_id fallback to parent ID. B3: g:price=regular, g:sale_price when on sale.

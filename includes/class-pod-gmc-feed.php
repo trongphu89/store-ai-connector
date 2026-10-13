@@ -293,7 +293,10 @@ class POD_GMC_Feed {
             ) );
         } else {
             // Simple product without POD Variations
-            $product_price = floatval( $product->get_price() );
+            $product_regular = floatval( $product->get_regular_price() );
+            $product_sale = floatval( $product->get_sale_price() );
+            $product_price = $product_regular > 0 ? $product_regular : floatval( $product->get_price() );
+            $product_is_sale = ( $product_sale > 0 && $product_sale < $product_regular );
             
             // Skip if price is invalid for GMC
             if ( $product_price <= 0 ) {
@@ -316,9 +319,12 @@ class POD_GMC_Feed {
                 'image_link'             => $product_image,
                 'additional_image_links'  => $additional_images,
                 'price'                  => number_format( $product_price, 2, '.', '' ) . ' ' . $currency,
+                'sale_price'             => $product_is_sale ? number_format( $product_sale, 2, '.', '' ) . ' ' . $currency : '',
                 'availability'           => $product_stock,
                 'condition'              => 'new',
                 'brand'                  => $brand,
+                'gtin'                   => $this->get_gtin_mpn( $product_id )['gtin'] ?: '', // B4
+                'mpn'                    => $this->get_gtin_mpn( $product_id )['mpn'] ?: '',
                 'google_product_category' => $google_category,
                 'gender'                 => $settings['default_gender'],
                 'age_group'              => $settings['default_age_group'],
@@ -544,7 +550,7 @@ class POD_GMC_Feed {
             $item = array(
                 'id' => $var_sku,
                 'item_group_id' => $parent_sku,
-                'title' => $base_data['title'],
+                'title' => $this->variation_title( $base_data['title'], $size, $color ), // B5
                 'description' => $base_data['description'],
                 'link' => $link,
                 'image_link' => $image,
@@ -575,6 +581,19 @@ class POD_GMC_Feed {
     /**
      * 22.2.4: Get GTIN/MPN from meta
      */
+/**
+     * B5: Title variation voi thuoc tinh (neu <=150 ky tu)
+     */
+    private function variation_title( $base, $size, $color ) {
+        $parts = array();
+        if ( $color ) $parts[] = $color;
+        if ( $size ) $parts[] = $size;
+        if ( empty( $parts ) ) return $base;
+        $suffix = ' - ' . implode( ' / ', $parts );
+        $full = $base . $suffix;
+        return ( strlen( $full ) <= 150 ) ? $full : $base;
+    }
+
     private function get_gtin_mpn( $product_id ) {
         $gtin = get_post_meta( $product_id, '_global_unique_id', true );
         if ( ! $gtin ) $gtin = get_post_meta( $product_id, '_gtin', true );
@@ -613,6 +632,9 @@ class POD_GMC_Feed {
         echo '<description><![CDATA[' . $this->sanitize_for_xml( $data['description'] ) . ']]></description>' . "\n";
         echo '<link>' . esc_url( $data['link'] ) . '</link>' . "\n";
         echo '<g:price>' . esc_html( $data['price'] ) . '</g:price>' . "\n";
+        if ( ! empty( $data['sale_price'] ) ) {
+            echo '<g:sale_price>' . esc_html( $data['sale_price'] ) . '</g:sale_price>' . "\n";
+        }
         echo '<g:availability>' . esc_html( $data['availability'] ) . '</g:availability>' . "\n";
         echo '<g:condition>' . esc_html( $data['condition'] ) . '</g:condition>' . "\n";
         // 22.2.4: GTIN/MPN or identifier_exists
