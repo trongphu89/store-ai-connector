@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management and GMC setup.
- * Version:     2.1.1
+ * Version:     2.1.2
  * Author:      Your Name
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -12,7 +12,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SAC_VERSION',           '2.1.1' );
+define( 'SAC_VERSION',           '2.1.2' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( __FILE__ ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -1019,13 +1019,20 @@ function sac_bulk_update( $request ) {
  */
 function sac_attachment_in_use( $att_id ) {
     global $wpdb;
+    // _thumbnail_id: exact match
     $c = $wpdb->get_var( $wpdb->prepare(
         "SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_thumbnail_id' AND meta_value = %d",
         $att_id ) );
     if ( $c > 0 ) return true;
+    // _product_image_gallery: format "12,34,56" - use FIND_IN_SET
     $c = $wpdb->get_var( $wpdb->prepare(
-        "SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_product_image_gallery' AND meta_value LIKE %s",
-        '%"' . $att_id . '"%' ) );
+        "SELECT COUNT(*) FROM $wpdb->postmeta WHERE meta_key = '_product_image_gallery' AND FIND_IN_SET(%d, meta_value) > 0",
+        $att_id ) );
+    if ( $c > 0 ) return true;
+    // post_content: wp-image-<id>
+    $c = $wpdb->get_var( $wpdb->prepare(
+        "SELECT COUNT(*) FROM $wpdb->posts WHERE post_content LIKE %s",
+        '%wp-image-' . $att_id . '%' ) );
     return $c > 0;
 }
 

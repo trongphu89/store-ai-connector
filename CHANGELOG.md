@@ -1,5 +1,11 @@
 # POD AI Connector - WordPress Plugin Changelog
 
+## Version 2.1.2 - 2026-10-13
+
+### Fixed
+- 20.2.1: sac_attachment_in_use() uses FIND_IN_SET for _product_image_gallery, checks post_content for wp-image-<id>.
+- 20.2.2: build-release-zip.sh creates release zip with store-ai-connector-main root dir, excludes dev files.
+
 ## Version 2.1.1 - 2026-10-13
 
 ### Fixed
