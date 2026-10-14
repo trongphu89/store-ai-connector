@@ -135,6 +135,8 @@ class POD_GMC_Feed {
         // 2.1.13: Prevent LiteSpeed cache for feed
         if ( function_exists( 'nocache_headers' ) ) nocache_headers();
         header( 'X-LiteSpeed-Cache-Control: no-cache' );
+        // 2.1.14: LiteSpeed overwrites headers, use its API
+        if ( has_action( 'litespeed_control_set_nocache' ) ) do_action( 'litespeed_control_set_nocache', 'sac: gmc feed' );
         // Set XML header
         header( 'Content-Type: application/xml; charset=utf-8' );
         

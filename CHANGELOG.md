@@ -1,4 +1,8 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.14 - 2026-10-14
+
+Fix 2.1.13 no-cache being overwritten by LiteSpeed: add do_action('litespeed_control_set_nocache', 'sac: gmc feed') in render_feed and do_action('litespeed_control_set_nocache', 'sac: rest') for sac/v1 routes. Keep nocache_headers().
+
 ## Version 2.1.13 - 2026-10-14
 
 Add no-cache headers (nocache_headers() + X-LiteSpeed-Cache-Control: no-cache) for feed and all sac/v1 routes. Add POST /sac/v1/purge-cache endpoint (do_action('litespeed_purge_all') if available).
