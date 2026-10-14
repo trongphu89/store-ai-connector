@@ -603,18 +603,53 @@ class POD_GMC_Feed {
             $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
             $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
             $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
-            // 2.1.10: "Any" variation -> expand by parent attributes
+            // 2.1.10/2.1.11: "Any" variation -> expand by parent attributes
+            // 2.1.11: store test uses CUSTOM attributes (not taxonomy), so use size/color
             $_expand = array();
             $_size_attr = 'size';
             $_color_attr = 'color';
-            if ( ( empty( $size ) || empty( $color ) ) && method_exists( $product, 'get_attribute' ) ) {
-                $_ps = $product->get_attribute( 'pa_size' );
-                if ( ! empty( $_ps ) ) { $_size_attr = 'pa_size'; } else { $_ps = $product->get_attribute( 'size' ); }
-                $_pc = $product->get_attribute( 'pa_color' );
-                if ( ! empty( $_pc ) ) { $_color_attr = 'pa_color'; } else { $_pc = $product->get_attribute( 'color' ); }
-                // 2.1.11: giu gia tri cu the, chi mo rong thuoc tinh rong
-                $_ss = ! empty( $size ) ? array( $size ) : ( ! empty( $_ps ) ? array_map( 'trim', explode( ',', $_ps ) ) : array( '' ) );
-                $_cc = ! empty( $color ) ? array( $color ) : ( ! empty( $_pc ) ? array_map( 'trim', explode( ',', $_pc ) ) : array( '' ) );
+            if ( ( empty( $size ) || empty( $color ) ) && method_exists( $product, 'get_attributes' ) ) {
+                $_attrs = $product->get_attributes();
+                $_ss = ! empty( $size ) ? array( $size ) : array( '' );
+                $_cc = ! empty( $color ) ? array( $color ) : array( '' );
+                foreach ( $_attrs as $_ak => $_av ) {
+                    $_an = strtolower( $_ak );
+                    // Match size attribute (custom 'size' or taxonomy 'pa_size')
+                    if ( empty( $size ) && ( $_an === 'size' || $_an === 'pa_size' ) ) {
+                        if ( $_an === 'pa_size' ) $_size_attr = 'pa_size';
+                        $_opts = $_av->get_options();
+                        if ( ! empty( $_opts ) ) {
+                            // Options may be term IDs (taxonomy) or strings (custom)
+                            $_names = array();
+                            foreach ( $_opts as $_o ) {
+                                if ( is_numeric( $_o ) ) {
+                                    $_t = get_term( $_o );
+                                    if ( $_t && ! is_wp_error( $_t ) ) $_names[] = $_t->name;
+                                } else {
+                                    $_names[] = $_o;
+                                }
+                            }
+                            if ( ! empty( $_names ) ) $_ss = $_names;
+                        }
+                    }
+                    // Match color attribute
+                    if ( empty( $color ) && ( $_an === 'color' || $_an === 'pa_color' ) ) {
+                        if ( $_an === 'pa_color' ) $_color_attr = 'pa_color';
+                        $_opts = $_av->get_options();
+                        if ( ! empty( $_opts ) ) {
+                            $_names = array();
+                            foreach ( $_opts as $_o ) {
+                                if ( is_numeric( $_o ) ) {
+                                    $_t = get_term( $_o );
+                                    if ( $_t && ! is_wp_error( $_t ) ) $_names[] = $_t->name;
+                                } else {
+                                    $_names[] = $_o;
+                                }
+                            }
+                            if ( ! empty( $_names ) ) $_cc = $_names;
+                        }
+                    }
+                }
                 foreach ( $_ss as $_s ) { foreach ( $_cc as $_c ) { $_expand[] = array( $_s, $_c ); } }
             }
             if ( empty( $_expand ) ) $_expand = array( array( $size, $color ) );
