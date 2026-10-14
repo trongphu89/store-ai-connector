@@ -333,58 +333,6 @@ class POD_GMC_Feed {
                 'return_policy_url'      => $return_policy_url,
             ) );
         }
-        } else {
-            // 2.1.8: POD khong co sizes - lay tu attribute san pham
-            $attr_sizes = array();
-            $attr_colors = array();
-            if ( method_exists( $product, 'get_attribute' ) ) {
-                $size_attr = $product->get_attribute( 'pa_size' );
-                if ( empty( $size_attr ) ) $size_attr = $product->get_attribute( 'size' );
-                if ( ! empty( $size_attr ) ) $attr_sizes = array_map( 'trim', explode( ',', $size_attr ) );
-                $color_attr = $product->get_attribute( 'pa_color' );
-                if ( empty( $color_attr ) ) $color_attr = $product->get_attribute( 'color' );
-                if ( ! empty( $color_attr ) ) $attr_colors = array_map( 'trim', explode( ',', $color_attr ) );
-            }
-            if ( empty( $attr_sizes ) ) $attr_sizes = array( '' );
-            if ( empty( $attr_colors ) ) $attr_colors = array( $default_color );
-            $base_price = floatval( $product->get_price() );
-            if ( $base_price <= 0 ) return;
-            foreach ( $attr_sizes as $sz ) {
-                foreach ( $attr_colors as $cl ) {
-                    $sz_name = $this->sanitize_for_xml( $sz );
-                    $cl_name = $this->sanitize_for_xml( $cl );
-                    $vid = $base_data['sku'];
-                    if ( $sz ) $vid .= '-' . sanitize_title( $sz );
-                    if ( $cl && $cl !== $default_color ) $vid .= '-' . sanitize_title( $cl );
-                    $vtitle = $base_data['title'];
-                    if ( $sz ) $vtitle .= ' - ' . $sz_name;
-                    if ( $cl && $cl !== $default_color ) $vtitle .= ' - ' . $cl_name;
-                    $vlink = $base_data['base_url'];
-                    $q = array();
-                    if ( $sz ) $q['attribute_size'] = $sz;
-                    if ( $cl ) $q['attribute_color'] = $cl;
-                    if ( $q ) $vlink = add_query_arg( $q, $vlink );
-                    $this->output_item( array(
-                        'id' => $vid,
-                        'item_group_id' => $item_group_id,
-                        'title' => $vtitle,
-                        'description' => $base_data['description'],
-                        'link' => $vlink,
-                        'image_link' => $base_data['image'],
-                        'price' => number_format( $base_price, 2, '.', '' ) . ' ' . $base_data['currency'],
-                        'availability' => $base_data['stock'],
-                        'condition' => 'new',
-                        'brand' => $base_data['brand'],
-                        'google_product_category' => $base_data['google_category'],
-                        'size' => $sz_name,
-                        'color' => $cl_name,
-                        'gender' => $gender,
-                        'age_group' => $age_group,
-                        'shipping' => $shipping,
-                        'return_policy_url' => $return_policy_url,
-                    ) );
-                }
-            }
     }
 
     
@@ -571,6 +519,58 @@ class POD_GMC_Feed {
                     'shipping'               => $shipping,
                     'return_policy_url'      => $return_policy_url,
                 ) );
+            }
+        } else {
+            // 2.1.8: POD khong co sizes - lay tu attribute san pham
+            $attr_sizes = array();
+            $attr_colors = array();
+            if ( method_exists( $product, 'get_attribute' ) ) {
+                $size_attr = $product->get_attribute( 'pa_size' );
+                if ( empty( $size_attr ) ) $size_attr = $product->get_attribute( 'size' );
+                if ( ! empty( $size_attr ) ) $attr_sizes = array_map( 'trim', explode( ',', $size_attr ) );
+                $color_attr = $product->get_attribute( 'pa_color' );
+                if ( empty( $color_attr ) ) $color_attr = $product->get_attribute( 'color' );
+                if ( ! empty( $color_attr ) ) $attr_colors = array_map( 'trim', explode( ',', $color_attr ) );
+            }
+            if ( empty( $attr_sizes ) ) $attr_sizes = array( '' );
+            if ( empty( $attr_colors ) ) $attr_colors = array( $default_color );
+            $base_price = floatval( $product->get_price() );
+            if ( $base_price <= 0 ) return;
+            foreach ( $attr_sizes as $sz ) {
+                foreach ( $attr_colors as $cl ) {
+                    $sz_name = $this->sanitize_for_xml( $sz );
+                    $cl_name = $this->sanitize_for_xml( $cl );
+                    $vid = $base_data['sku'];
+                    if ( $sz ) $vid .= '-' . sanitize_title( $sz );
+                    if ( $cl && $cl !== $default_color ) $vid .= '-' . sanitize_title( $cl );
+                    $vtitle = $base_data['title'];
+                    if ( $sz ) $vtitle .= ' - ' . $sz_name;
+                    if ( $cl && $cl !== $default_color ) $vtitle .= ' - ' . $cl_name;
+                    $vlink = $base_data['base_url'];
+                    $q = array();
+                    if ( $sz ) $q['attribute_size'] = $sz;
+                    if ( $cl ) $q['attribute_color'] = $cl;
+                    if ( $q ) $vlink = add_query_arg( $q, $vlink );
+                    $this->output_item( array(
+                        'id' => $vid,
+                        'item_group_id' => $item_group_id,
+                        'title' => $vtitle,
+                        'description' => $base_data['description'],
+                        'link' => $vlink,
+                        'image_link' => $base_data['image'],
+                        'price' => number_format( $base_price, 2, '.', '' ) . ' ' . $base_data['currency'],
+                        'availability' => $base_data['stock'],
+                        'condition' => 'new',
+                        'brand' => $base_data['brand'],
+                        'google_product_category' => $base_data['google_category'],
+                        'size' => $sz_name,
+                        'color' => $cl_name,
+                        'gender' => $gender,
+                        'age_group' => $age_group,
+                        'shipping' => $shipping,
+                        'return_policy_url' => $return_policy_url,
+                    ) );
+                }
             }
         }
     }
