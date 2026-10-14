@@ -132,6 +132,9 @@ class POD_GMC_Feed {
      * Render the GMC feed
      */
     public function render_feed() {
+        // 2.1.13: Prevent LiteSpeed cache for feed
+        if ( function_exists( 'nocache_headers' ) ) nocache_headers();
+        header( 'X-LiteSpeed-Cache-Control: no-cache' );
         // Set XML header
         header( 'Content-Type: application/xml; charset=utf-8' );
         

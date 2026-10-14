@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management and GMC setup.
- * Version:     2.1.12
+ * Version:     2.1.13
  * Author:      Your Name
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -12,7 +12,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SAC_VERSION',           '2.1.12' );
+define( 'SAC_VERSION',           '2.1.13' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( __FILE__ ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -147,6 +147,9 @@ function sac_add_cors_headers() {
         header( 'Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS' );
         header( 'Access-Control-Allow-Headers: Content-Type, X-POD-API-Key, X-POD-Signature, X-POD-Signature-NB, X-POD-Timestamp, Authorization' );
         header( 'Access-Control-Allow-Credentials: true' );
+        // 2.1.13: Prevent LiteSpeed cache for API routes
+        if ( function_exists( 'nocache_headers' ) ) nocache_headers();
+        header( 'X-LiteSpeed-Cache-Control: no-cache' );
         
         // Handle preflight OPTIONS request
         if ( $_SERVER['REQUEST_METHOD'] === 'OPTIONS' ) {
@@ -165,6 +168,12 @@ function sac_register_routes() {
         'methods'             => 'GET',
         'callback'            => 'sac_health',
         'permission_callback' => '__return_true',
+    ) );
+    // 2.1.13: Purge LiteSpeed cache
+    register_rest_route( 'sac/v1', '/purge-cache', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_purge_cache',
+        'permission_callback' => 'sac_verify',
     ) );
     register_rest_route( 'sac/v1', '/site-settings', array(
         'methods'             => 'POST',
@@ -486,6 +495,17 @@ function sac_health( $request ) {
         'woocommerce' => $has_woo,
         'timestamp'   => time(),
     ) );
+}
+
+/**
+ * 2.1.13: Purge LiteSpeed cache
+ */
+function sac_purge_cache( $request ) {
+    if ( has_action( 'litespeed_purge_all' ) ) {
+        do_action( 'litespeed_purge_all' );
+        return rest_ensure_response( array( 'ok' => true, 'purged' => 'litespeed' ) );
+    }
+    return rest_ensure_response( array( 'ok' => false, 'reason' => 'litespeed not available' ) );
 }
 
 function sac_site_settings( $request ) {
