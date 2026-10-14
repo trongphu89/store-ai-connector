@@ -1,4 +1,8 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.10 - 2026-10-14
+
+P0: output_wc_variation_items() mo rong variation 'Any' (size/color rong) theo attribute cha: id = <SKU variation>-<size>-<color>, item_group_id = SKU cha, link co attribute (taxonomy dung slug). Variation co gia tri cu the giu nguyen.
+
 ## Version 2.1.9 - 2026-10-13
 
 P2: link variant dung ten attribute that (attribute_pa_size/attribute_pa_color cho taxonomy, attribute_size/attribute_color cho custom). Title variant dung variation_title() ("Base - Color / Size").

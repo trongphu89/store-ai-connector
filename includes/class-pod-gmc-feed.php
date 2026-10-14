@@ -603,14 +603,30 @@ class POD_GMC_Feed {
             $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
             $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
             $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
+            // 2.1.10: "Any" variation -> expand by parent attributes
+            $_expand = array();
+            $_size_attr = 'size';
+            $_color_attr = 'color';
+            if ( empty( $size ) && empty( $color ) && method_exists( $product, 'get_attribute' ) ) {
+                $_ps = $product->get_attribute( 'pa_size' );
+                if ( ! empty( $_ps ) ) { $_size_attr = 'pa_size'; } else { $_ps = $product->get_attribute( 'size' ); }
+                $_pc = $product->get_attribute( 'pa_color' );
+                if ( ! empty( $_pc ) ) { $_color_attr = 'pa_color'; } else { $_pc = $product->get_attribute( 'color' ); }
+                $_ss = ! empty( $_ps ) ? array_map( 'trim', explode( ',', $_ps ) ) : array( '' );
+                $_cc = ! empty( $_pc ) ? array_map( 'trim', explode( ',', $_pc ) ) : array( '' );
+                foreach ( $_ss as $_s ) { foreach ( $_cc as $_c ) { $_expand[] = array( $_s, $_c ); } }
+            }
+            if ( empty( $_expand ) ) $_expand = array( array( $size, $color ) );
             $img_id = $variation->get_image_id() ?: $product->get_image_id();
             $image = $img_id ? wp_get_attachment_url( $img_id ) : $base_data['image'];
             $link = $variation->get_permalink(); // B1
             $gtin_data = $this->get_gtin_mpn( $var_id );
+            foreach ( $_expand as $_e ) {
+                list( $esize, $ecolor ) = $_e;
             $item = array(
-                'id' => $var_sku,
+                'id' => $var_sku . ( $esize ? '-' . sanitize_title( $esize ) : '' ) . ( $ecolor ? '-' . sanitize_title( $ecolor ) : '' ),
                 'item_group_id' => $parent_sku,
-                'title' => $this->variation_title( $base_data['title'], $size, $color ), // B5
+                'title' => $this->variation_title( $base_data['title'], $esize, $ecolor ), // B5
                 'description' => $base_data['description'],
                 'link' => $link,
                 'image_link' => $image,
@@ -625,8 +641,8 @@ class POD_GMC_Feed {
                 'shipping' => $base_data['shipping'],
                 'return_policy_url' => $base_data['return_policy_url'],
             );
-            if ( $size ) $item['size'] = $size;
-            if ( $color ) $item['color'] = $color;
+            if ( $esize ) $item['size'] = $esize;
+            if ( $ecolor ) $item['color'] = $ecolor;
             if ( ! empty( $gtin_data['gtin'] ) ) {
                 $item['gtin'] = $gtin_data['gtin'];
             } elseif ( ! empty( $gtin_data['mpn'] ) ) {
@@ -634,7 +650,15 @@ class POD_GMC_Feed {
             } else {
                 $item['identifier_exists'] = 'no';
             }
+            // 2.1.10: link with pre-selected attributes when expanding
+            if ( $esize || $ecolor ) {
+                $_q = array();
+                if ( $esize ) $_q['attribute_' . $_size_attr] = sanitize_title( $esize );
+                if ( $ecolor ) $_q['attribute_' . $_color_attr] = sanitize_title( $ecolor );
+                if ( $_q ) $item['link'] = add_query_arg( $_q, $item['link'] );
+            }
             $this->output_item( $item );
+            } // end foreach $_expand
         }
     }
 
