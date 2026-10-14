@@ -12,14 +12,14 @@ if (php_sapi_name() !== 'cli') {
  *   - _pod_variations meta exists but has EMPTY sizes (and no styles)
  *   - Expected: 15 feed items (5 sizes x 3 colors), none dropped
  *   - id = <SKU>-<size>-<color>, item_group_id = parent SKU,
- *     parent price, link ?attribute_size=..&attribute_color=..
+ *     parent price, link ?attribute_pa_size=..&attribute_pa_color=.. (2.1.9: real attr names)
  *
  * Usage: php test_218.php [path-to-class-pod-gmc-feed.php]
  * Exit 0 = all pass, 1 = failure.
  */
 
 // ---------- WordPress/WooCommerce stubs (test doubles, no WP needed) ----------
-define( 'ABSPATH', '/tmp/sac-push/' );
+define( 'ABSPATH', '/tmp/sac-27/' );
 
 function add_action( ...$a ) {}
 function add_filter( ...$a ) {}
@@ -69,7 +69,7 @@ class FakeProduct211 {
     public function get_attribute( $name ) { return $this->attrs[ $name ] ?? ''; }
 }
 
-$feed_file = $argv[1] ?? '/tmp/sac-push/includes/class-pod-gmc-feed.php';
+$feed_file = $argv[1] ?? '/tmp/sac-27/includes/class-pod-gmc-feed.php';
 require $feed_file;
 
 $settings = array(
@@ -123,17 +123,17 @@ foreach ( $items as $it ) {
     if ( tag_of( $it, 'g:item_group_id' ) !== 'JAC-TMT-946' ) $ok_group = false;
     if ( tag_of( $it, 'g:price' ) !== '49.99 USD' ) $ok_price = false;
     $link = tag_of( $it, 'link' );
-    if ( strpos( $link, 'attribute_size=' ) === false || strpos( $link, 'attribute_color=' ) === false ) $ok_link = false;
+    if ( strpos( $link, 'attribute_pa_size=' ) === false || strpos( $link, 'attribute_pa_color=' ) === false ) $ok_link = false;
     if ( tag_of( $it, 'g:size' ) === null || tag_of( $it, 'g:size' ) === '' ) $ok_size = false;
     if ( tag_of( $it, 'g:color' ) === null || tag_of( $it, 'g:color' ) === '' ) $ok_color = false;
 }
 check( '211: item_group_id = parent SKU on all items', $ok_group );
 check( '211: price = 49.99 USD (parent price) on all items', $ok_price );
-check( '211: link has ?attribute_size=..&attribute_color=.. on all items', $ok_link );
+check( '211: link has ?attribute_pa_size=..&attribute_pa_color=.. on all items', $ok_link );
 check( '211: g:size present on all items', $ok_size );
 check( '211: g:color present on all items', $ok_color );
-check( '211: title "Tailored Wool Overcoat - S - Black" present',
-    strpos( $xml, 'Tailored Wool Overcoat - S - Black' ) !== false );
+check( '211: title "Tailored Wool Overcoat - Black / S" present (variation_title format)',
+    strpos( $xml, 'Tailored Wool Overcoat - Black / S' ) !== false );
 
 // ================= Case 2: zero price -> skipped (GMC invalid) =================
 $p2 = new FakeProduct211(); $p2->price = '0';

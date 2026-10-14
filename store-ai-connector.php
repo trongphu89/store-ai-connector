@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management and GMC setup.
- * Version:     2.1.8
+ * Version:     2.1.9
  * Author:      Your Name
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -12,7 +12,7 @@
  */
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-define( 'SAC_VERSION',           '2.1.8' );
+define( 'SAC_VERSION',           '2.1.9' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( __FILE__ ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );

@@ -1,4 +1,8 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.9 - 2026-10-13
+
+P2: link variant dung ten attribute that (attribute_pa_size/attribute_pa_color cho taxonomy, attribute_size/attribute_color cho custom). Title variant dung variation_title() ("Base - Color / Size").
+
 ## Version 2.1.7 - 2026-10-13 - DO NOT USE
 
 **Bản lỗi, không phát hành.** Sửa sai hướng: bỏ hẳn item Apparel không có size → feed rỗng với store may mặc. Đã thay bằng 2.1.8.

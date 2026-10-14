@@ -526,10 +526,20 @@ class POD_GMC_Feed {
             $attr_colors = array();
             if ( method_exists( $product, 'get_attribute' ) ) {
                 $size_attr = $product->get_attribute( 'pa_size' );
-                if ( empty( $size_attr ) ) $size_attr = $product->get_attribute( 'size' );
+                $size_attr_name = 'size';
+                if ( ! empty( $size_attr ) ) {
+                    $size_attr_name = 'pa_size';
+                } else {
+                    $size_attr = $product->get_attribute( 'size' );
+                }
                 if ( ! empty( $size_attr ) ) $attr_sizes = array_map( 'trim', explode( ',', $size_attr ) );
                 $color_attr = $product->get_attribute( 'pa_color' );
-                if ( empty( $color_attr ) ) $color_attr = $product->get_attribute( 'color' );
+                $color_attr_name = 'color';
+                if ( ! empty( $color_attr ) ) {
+                    $color_attr_name = 'pa_color';
+                } else {
+                    $color_attr = $product->get_attribute( 'color' );
+                }
                 if ( ! empty( $color_attr ) ) $attr_colors = array_map( 'trim', explode( ',', $color_attr ) );
             }
             if ( empty( $attr_sizes ) ) $attr_sizes = array( '' );
@@ -543,13 +553,11 @@ class POD_GMC_Feed {
                     $vid = $base_data['sku'];
                     if ( $sz ) $vid .= '-' . sanitize_title( $sz );
                     if ( $cl && $cl !== $default_color ) $vid .= '-' . sanitize_title( $cl );
-                    $vtitle = $base_data['title'];
-                    if ( $sz ) $vtitle .= ' - ' . $sz_name;
-                    if ( $cl && $cl !== $default_color ) $vtitle .= ' - ' . $cl_name;
+                    $vtitle = $this->variation_title( $base_data['title'], $sz_name, ( $cl && $cl !== $default_color ) ? $cl_name : '' );
                     $vlink = $base_data['base_url'];
                     $q = array();
-                    if ( $sz ) $q['attribute_size'] = $sz;
-                    if ( $cl ) $q['attribute_color'] = $cl;
+                    if ( $sz ) $q['attribute_' . $size_attr_name] = $sz;
+                    if ( $cl ) $q['attribute_' . $color_attr_name] = $cl;
                     if ( $q ) $vlink = add_query_arg( $q, $vlink );
                     $this->output_item( array(
                         'id' => $vid,
