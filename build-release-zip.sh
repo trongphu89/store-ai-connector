@@ -12,6 +12,7 @@ rsync -a --exclude='.git' \
   --exclude='rename-prefix.ps1' \
   --exclude='test-*.js' \
   --exclude='test_*.php' \
+  --exclude='tests/' \
   --exclude='*.mjs' \
   --exclude='package.json' \
   --exclude='clean-invalid-gallery.php' \

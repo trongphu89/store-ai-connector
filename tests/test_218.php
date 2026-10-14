@@ -1,4 +1,9 @@
 <?php
+// CLI only - never run via web
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    exit('CLI only');
+}
 /**
  * test_218.php - Real PHP test for store-ai-connector 2.1.8
  *
