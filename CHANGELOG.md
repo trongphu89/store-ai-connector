@@ -1,4 +1,8 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.12 - 2026-10-14
+
+Fix is_numeric() term guess bug: custom numeric options ("38", "32") no longer mis-looked-up as term IDs. Use $attr->is_taxonomy(): taxonomy → wc_get_product_terms() (name for g:size/g:color, slug for link); custom → get_options() strings. Extract shared get_expand_attr_values() helper for size/color.
+
 ## Version 2.1.11 - 2026-10-14
 
 Mo rong ca khi chi mot thuoc tinh la 'Any': giu gia tri cu the, chi mo rong thuoc tinh rong.

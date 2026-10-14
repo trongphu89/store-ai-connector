@@ -585,6 +585,42 @@ class POD_GMC_Feed {
     /**
      * 22.2.2: Output WC_Product_Variable variation items
      */
+    /**
+     * 2.1.12: Get attribute values for expansion (name for display, slug for link)
+     * @return array array( 'names' => [...], 'slugs' => [...], 'attr_name' => 'size'|'pa_size' )
+     */
+    private function get_expand_attr_values( $product, $attr_key ) {
+        $result = array( 'names' => array(), 'slugs' => array(), 'attr_name' => $attr_key );
+        if ( ! method_exists( $product, 'get_attributes' ) ) return $result;
+        $attrs = $product->get_attributes();
+        foreach ( $attrs as $ak => $av ) {
+            $an = strtolower( $ak );
+            // Match by key (custom 'size' or taxonomy 'pa_size')
+            if ( $an !== strtolower( $attr_key ) && $an !== 'pa_' . strtolower( $attr_key ) ) continue;
+            if ( method_exists( $av, 'is_taxonomy' ) && $av->is_taxonomy() ) {
+                // Taxonomy: get terms with names and slugs
+                $result['attr_name'] = $av->get_name(); // e.g. 'pa_size'
+                if ( function_exists( 'wc_get_product_terms' ) ) {
+                    $terms = wc_get_product_terms( $product->get_id(), $av->get_name(), array( 'fields' => 'all' ) );
+                    foreach ( $terms as $t ) {
+                        $result['names'][] = $t->name;
+                        $result['slugs'][] = $t->slug;
+                    }
+                }
+            } else {
+                // Custom: options are strings
+                $result['attr_name'] = $ak; // e.g. 'size'
+                $opts = method_exists( $av, 'get_options' ) ? $av->get_options() : array();
+                foreach ( $opts as $o ) {
+                    $result['names'][] = $o;
+                    $result['slugs'][] = sanitize_title( $o );
+                }
+            }
+            break; // Found it
+        }
+        return $result;
+    }
+
     private function output_wc_variation_items( $product, $settings, $base_data ) {
         $variations = $product->get_available_variations();
         if ( empty( $variations ) ) return;
@@ -603,62 +639,38 @@ class POD_GMC_Feed {
             $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
             $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
             $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
-            // 2.1.10/2.1.11: "Any" variation -> expand by parent attributes
-            // 2.1.11: store test uses CUSTOM attributes (not taxonomy), so use size/color
+            // 2.1.12: "Any" variation -> expand by parent attributes via helper
             $_expand = array();
             $_size_attr = 'size';
             $_color_attr = 'color';
-            if ( ( empty( $size ) || empty( $color ) ) && method_exists( $product, 'get_attributes' ) ) {
-                $_attrs = $product->get_attributes();
-                $_ss = ! empty( $size ) ? array( $size ) : array( '' );
-                $_cc = ! empty( $color ) ? array( $color ) : array( '' );
-                foreach ( $_attrs as $_ak => $_av ) {
-                    $_an = strtolower( $_ak );
-                    // Match size attribute (custom 'size' or taxonomy 'pa_size')
-                    if ( empty( $size ) && ( $_an === 'size' || $_an === 'pa_size' ) ) {
-                        if ( $_an === 'pa_size' ) $_size_attr = 'pa_size';
-                        $_opts = $_av->get_options();
-                        if ( ! empty( $_opts ) ) {
-                            // Options may be term IDs (taxonomy) or strings (custom)
-                            $_names = array();
-                            foreach ( $_opts as $_o ) {
-                                if ( is_numeric( $_o ) ) {
-                                    $_t = get_term( $_o );
-                                    if ( $_t && ! is_wp_error( $_t ) ) $_names[] = $_t->name;
-                                } else {
-                                    $_names[] = $_o;
-                                }
-                            }
-                            if ( ! empty( $_names ) ) $_ss = $_names;
-                        }
-                    }
-                    // Match color attribute
-                    if ( empty( $color ) && ( $_an === 'color' || $_an === 'pa_color' ) ) {
-                        if ( $_an === 'pa_color' ) $_color_attr = 'pa_color';
-                        $_opts = $_av->get_options();
-                        if ( ! empty( $_opts ) ) {
-                            $_names = array();
-                            foreach ( $_opts as $_o ) {
-                                if ( is_numeric( $_o ) ) {
-                                    $_t = get_term( $_o );
-                                    if ( $_t && ! is_wp_error( $_t ) ) $_names[] = $_t->name;
-                                } else {
-                                    $_names[] = $_o;
-                                }
-                            }
-                            if ( ! empty( $_names ) ) $_cc = $_names;
-                        }
+            $_size_slugs = array();
+            $_color_slugs = array();
+            if ( empty( $size ) || empty( $color ) ) {
+                $_sv = $this->get_expand_attr_values( $product, 'size' );
+                $_cv = $this->get_expand_attr_values( $product, 'color' );
+                $_size_attr = $_sv['attr_name'];
+                $_color_attr = $_cv['attr_name'];
+                $_ss = ! empty( $size ) ? array( $size ) : $_sv['names'];
+                $_cc = ! empty( $color ) ? array( $color ) : $_cv['names'];
+                $_size_slugs = ! empty( $size ) ? array( sanitize_title( $size ) ) : $_sv['slugs'];
+                $_color_slugs = ! empty( $color ) ? array( sanitize_title( $color ) ) : $_cv['slugs'];
+                if ( empty( $_ss ) ) $_ss = array( '' );
+                if ( empty( $_cc ) ) $_cc = array( '' );
+                if ( empty( $_size_slugs ) ) $_size_slugs = array( '' );
+                if ( empty( $_color_slugs ) ) $_color_slugs = array( '' );
+                foreach ( $_ss as $_si => $_s ) {
+                    foreach ( $_cc as $_ci => $_c ) {
+                        $_expand[] = array( $_s, $_c, $_size_slugs[$_si] ?? '', $_color_slugs[$_ci] ?? '' );
                     }
                 }
-                foreach ( $_ss as $_s ) { foreach ( $_cc as $_c ) { $_expand[] = array( $_s, $_c ); } }
             }
-            if ( empty( $_expand ) ) $_expand = array( array( $size, $color ) );
+            if ( empty( $_expand ) ) $_expand = array( array( $size, $color, '', '' ) );
             $img_id = $variation->get_image_id() ?: $product->get_image_id();
             $image = $img_id ? wp_get_attachment_url( $img_id ) : $base_data['image'];
             $link = $variation->get_permalink(); // B1
             $gtin_data = $this->get_gtin_mpn( $var_id );
             foreach ( $_expand as $_e ) {
-                list( $esize, $ecolor ) = $_e;
+                list( $esize, $ecolor, $esize_slug, $ecolor_slug ) = $_e;
             $item = array(
                 'id' => $var_sku . ( $esize ? '-' . sanitize_title( $esize ) : '' ) . ( $ecolor ? '-' . sanitize_title( $ecolor ) : '' ),
                 'item_group_id' => $parent_sku,
@@ -689,8 +701,8 @@ class POD_GMC_Feed {
             // 2.1.10: link with pre-selected attributes when expanding
             if ( $esize || $ecolor ) {
                 $_q = array();
-                if ( $esize ) $_q['attribute_' . $_size_attr] = sanitize_title( $esize );
-                if ( $ecolor ) $_q['attribute_' . $_color_attr] = sanitize_title( $ecolor );
+                if ( $esize ) $_q['attribute_' . $_size_attr] = $esize_slug ?: sanitize_title( $esize );
+                if ( $ecolor ) $_q['attribute_' . $_color_attr] = $ecolor_slug ?: sanitize_title( $ecolor );
                 if ( $_q ) $item['link'] = add_query_arg( $_q, $item['link'] );
             }
             $this->output_item( $item );
