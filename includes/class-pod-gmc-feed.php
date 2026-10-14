@@ -607,13 +607,14 @@ class POD_GMC_Feed {
             $_expand = array();
             $_size_attr = 'size';
             $_color_attr = 'color';
-            if ( empty( $size ) && empty( $color ) && method_exists( $product, 'get_attribute' ) ) {
+            if ( ( empty( $size ) || empty( $color ) ) && method_exists( $product, 'get_attribute' ) ) {
                 $_ps = $product->get_attribute( 'pa_size' );
                 if ( ! empty( $_ps ) ) { $_size_attr = 'pa_size'; } else { $_ps = $product->get_attribute( 'size' ); }
                 $_pc = $product->get_attribute( 'pa_color' );
                 if ( ! empty( $_pc ) ) { $_color_attr = 'pa_color'; } else { $_pc = $product->get_attribute( 'color' ); }
-                $_ss = ! empty( $_ps ) ? array_map( 'trim', explode( ',', $_ps ) ) : array( '' );
-                $_cc = ! empty( $_pc ) ? array_map( 'trim', explode( ',', $_pc ) ) : array( '' );
+                // 2.1.11: giu gia tri cu the, chi mo rong thuoc tinh rong
+                $_ss = ! empty( $size ) ? array( $size ) : ( ! empty( $_ps ) ? array_map( 'trim', explode( ',', $_ps ) ) : array( '' ) );
+                $_cc = ! empty( $color ) ? array( $color ) : ( ! empty( $_pc ) ? array_map( 'trim', explode( ',', $_pc ) ) : array( '' ) );
                 foreach ( $_ss as $_s ) { foreach ( $_cc as $_c ) { $_expand[] = array( $_s, $_c ); } }
             }
             if ( empty( $_expand ) ) $_expand = array( array( $size, $color ) );

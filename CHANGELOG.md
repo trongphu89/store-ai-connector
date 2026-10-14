@@ -1,4 +1,8 @@
 # POD AI Connector - WordPress Plugin Changelog
+## Version 2.1.11 - 2026-10-14
+
+Mo rong ca khi chi mot thuoc tinh la 'Any': giu gia tri cu the, chi mo rong thuoc tinh rong.
+
 ## Version 2.1.10 - 2026-10-14
 
 P0: output_wc_variation_items() mo rong variation 'Any' (size/color rong) theo attribute cha: id = <SKU variation>-<size>-<color>, item_group_id = SKU cha, link co attribute (taxonomy dung slug). Variation co gia tri cu the giu nguyen.
