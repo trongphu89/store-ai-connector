@@ -58,7 +58,7 @@ class POD_Option_Forms_Admin {
                 'edit.php?post_type=product',
                 'POD Virtual Option Forms',
                 '⚡ Variant Ảo (POD)',
-                'manage_woocommerce',
+                'manage_options',
                 'pod-option-forms-wc',
                 array( __CLASS__, 'render_admin_page' )
             );
@@ -69,7 +69,7 @@ class POD_Option_Forms_Admin {
      * Handle quick actions: delete, toggle, load_presets, import_wcpa, convert_all_variable
      */
     public static function handle_quick_action() {
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_options' ) ) {
             wp_die( 'Unauthorized' );
         }
         check_admin_referer( 'pod_of_quick_action_nonce' );
@@ -122,7 +122,7 @@ class POD_Option_Forms_Admin {
      * Save Visual Form Builder JSON payload
      */
     public static function handle_save_form() {
-        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_woocommerce' ) ) {
+        if ( ! current_user_can( 'manage_options' ) && ! current_user_can( 'manage_options' ) ) {
             wp_die( 'Unauthorized' );
         }
         check_admin_referer( 'pod_of_save_form_nonce' );
