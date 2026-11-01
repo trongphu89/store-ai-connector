@@ -119,9 +119,6 @@ class POD_SEO {
      * Output Organization Schema JSON-LD
      */
     public function output_organization_schema() {
-        if ( ! apply_filters( 'pod_seo_output_organization', true ) ) {
-            return;
-        }
         // Only output on homepage
         if ( ! is_front_page() && ! is_home() ) {
             return;
@@ -155,8 +152,6 @@ class POD_SEO {
         if ( ! empty( $social_profiles ) ) {
             $schema['sameAs'] = $social_profiles;
         }
-        
-        $schema = apply_filters( 'pod_seo_organization_schema', $schema );
         
         echo '<script type="application/ld+json">' . "\n";
         echo wp_json_encode( $schema, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT );
@@ -331,9 +326,6 @@ class POD_SEO {
      * This replaces WooCommerce default schema with GMC-compliant version
      */
     public function output_product_schema() {
-        if ( ! apply_filters( 'pod_seo_output_product', true ) ) {
-            return;
-        }
         if ( ! is_singular( 'product' ) || ! function_exists( 'wc_get_product' ) ) {
             return;
         }

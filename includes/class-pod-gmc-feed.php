@@ -132,11 +132,6 @@ class POD_GMC_Feed {
      * Render the GMC feed
      */
     public function render_feed() {
-        // 2.1.13: Prevent LiteSpeed cache for feed
-        if ( function_exists( 'nocache_headers' ) ) nocache_headers();
-        header( 'X-LiteSpeed-Cache-Control: no-cache' );
-        // 2.1.14: LiteSpeed overwrites headers, use its API
-        if ( has_action( 'litespeed_control_set_nocache' ) ) do_action( 'litespeed_control_set_nocache', 'sac: gmc feed' );
         // Set XML header
         header( 'Content-Type: application/xml; charset=utf-8' );
         
@@ -280,28 +275,9 @@ class POD_GMC_Feed {
                 'shipping'          => $this->get_shipping_data( $settings, $currency ),
                 'return_policy_url' => $return_policy_url,
             ) );
-        } elseif ( $product->is_type( 'variable' ) ) {
-            // 22.2.2: WC_Product_Variable - each variation 1 item
-            $this->output_wc_variation_items( $product, $settings, array(
-                'title'             => $product_title,
-                'description'       => $product_desc,
-                'sku'               => $product_sku,
-                'image'             => $product_image,
-                'brand'             => $brand,
-                'google_category'   => $google_category,
-                'base_url'          => $base_url,
-                'currency'          => $currency,
-                'gender'            => $settings['default_gender'],
-                'age_group'         => $settings['default_age_group'],
-                'shipping'          => $this->get_shipping_data( $settings, $currency ),
-                'return_policy_url' => $return_policy_url,
-            ) );
         } else {
             // Simple product without POD Variations
-            $product_regular = floatval( $product->get_regular_price() );
-            $product_sale = floatval( $product->get_sale_price() );
-            $product_price = $product_regular > 0 ? $product_regular : floatval( $product->get_price() );
-            $product_is_sale = ( $product_sale > 0 && $product_sale < $product_regular );
+            $product_price = floatval( $product->get_price() );
             
             // Skip if price is invalid for GMC
             if ( $product_price <= 0 ) {
@@ -324,12 +300,9 @@ class POD_GMC_Feed {
                 'image_link'             => $product_image,
                 'additional_image_links'  => $additional_images,
                 'price'                  => number_format( $product_price, 2, '.', '' ) . ' ' . $currency,
-                'sale_price'             => $product_is_sale ? number_format( $product_sale, 2, '.', '' ) . ' ' . $currency : '',
                 'availability'           => $product_stock,
                 'condition'              => 'new',
                 'brand'                  => $brand,
-                'gtin'                   => $this->get_gtin_mpn( $product_id )['gtin'] ?: '', // B4
-                'mpn'                    => $this->get_gtin_mpn( $product_id )['mpn'] ?: '',
                 'google_product_category' => $google_category,
                 'gender'                 => $settings['default_gender'],
                 'age_group'              => $settings['default_age_group'],
@@ -525,218 +498,8 @@ class POD_GMC_Feed {
                     'return_policy_url'      => $return_policy_url,
                 ) );
             }
-        } else {
-            // 2.1.8: POD khong co sizes - lay tu attribute san pham
-            $attr_sizes = array();
-            $attr_colors = array();
-            if ( method_exists( $product, 'get_attribute' ) ) {
-                $size_attr = $product->get_attribute( 'pa_size' );
-                $size_attr_name = 'size';
-                if ( ! empty( $size_attr ) ) {
-                    $size_attr_name = 'pa_size';
-                } else {
-                    $size_attr = $product->get_attribute( 'size' );
-                }
-                if ( ! empty( $size_attr ) ) $attr_sizes = array_map( 'trim', explode( ',', $size_attr ) );
-                $color_attr = $product->get_attribute( 'pa_color' );
-                $color_attr_name = 'color';
-                if ( ! empty( $color_attr ) ) {
-                    $color_attr_name = 'pa_color';
-                } else {
-                    $color_attr = $product->get_attribute( 'color' );
-                }
-                if ( ! empty( $color_attr ) ) $attr_colors = array_map( 'trim', explode( ',', $color_attr ) );
-            }
-            if ( empty( $attr_sizes ) ) $attr_sizes = array( '' );
-            if ( empty( $attr_colors ) ) $attr_colors = array( $default_color );
-            $base_price = floatval( $product->get_price() );
-            if ( $base_price <= 0 ) return;
-            foreach ( $attr_sizes as $sz ) {
-                foreach ( $attr_colors as $cl ) {
-                    $sz_name = $this->sanitize_for_xml( $sz );
-                    $cl_name = $this->sanitize_for_xml( $cl );
-                    $vid = $base_data['sku'];
-                    if ( $sz ) $vid .= '-' . sanitize_title( $sz );
-                    if ( $cl && $cl !== $default_color ) $vid .= '-' . sanitize_title( $cl );
-                    $vtitle = $this->variation_title( $base_data['title'], $sz_name, ( $cl && $cl !== $default_color ) ? $cl_name : '' );
-                    $vlink = $base_data['base_url'];
-                    $q = array();
-                    if ( $sz ) $q['attribute_' . $size_attr_name] = $sz;
-                    if ( $cl ) $q['attribute_' . $color_attr_name] = $cl;
-                    if ( $q ) $vlink = add_query_arg( $q, $vlink );
-                    $this->output_item( array(
-                        'id' => $vid,
-                        'item_group_id' => $item_group_id,
-                        'title' => $vtitle,
-                        'description' => $base_data['description'],
-                        'link' => $vlink,
-                        'image_link' => $base_data['image'],
-                        'price' => number_format( $base_price, 2, '.', '' ) . ' ' . $base_data['currency'],
-                        'availability' => $base_data['stock'],
-                        'condition' => 'new',
-                        'brand' => $base_data['brand'],
-                        'google_product_category' => $base_data['google_category'],
-                        'size' => $sz_name,
-                        'color' => $cl_name,
-                        'gender' => $gender,
-                        'age_group' => $age_group,
-                        'shipping' => $shipping,
-                        'return_policy_url' => $return_policy_url,
-                    ) );
-                }
-            }
         }
     }
-    /**
-     * 22.2.2: Output WC_Product_Variable variation items
-     */
-    /**
-     * 2.1.12: Get attribute values for expansion (name for display, slug for link)
-     * @return array array( 'names' => [...], 'slugs' => [...], 'attr_name' => 'size'|'pa_size' )
-     */
-    private function get_expand_attr_values( $product, $attr_key ) {
-        $result = array( 'names' => array(), 'slugs' => array(), 'attr_name' => $attr_key );
-        if ( ! method_exists( $product, 'get_attributes' ) ) return $result;
-        $attrs = $product->get_attributes();
-        foreach ( $attrs as $ak => $av ) {
-            $an = strtolower( $ak );
-            // Match by key (custom 'size' or taxonomy 'pa_size')
-            if ( $an !== strtolower( $attr_key ) && $an !== 'pa_' . strtolower( $attr_key ) ) continue;
-            if ( method_exists( $av, 'is_taxonomy' ) && $av->is_taxonomy() ) {
-                // Taxonomy: get terms with names and slugs
-                $result['attr_name'] = $av->get_name(); // e.g. 'pa_size'
-                if ( function_exists( 'wc_get_product_terms' ) ) {
-                    $terms = wc_get_product_terms( $product->get_id(), $av->get_name(), array( 'fields' => 'all' ) );
-                    foreach ( $terms as $t ) {
-                        $result['names'][] = $t->name;
-                        $result['slugs'][] = $t->slug;
-                    }
-                }
-            } else {
-                // Custom: options are strings
-                $result['attr_name'] = $ak; // e.g. 'size'
-                $opts = method_exists( $av, 'get_options' ) ? $av->get_options() : array();
-                foreach ( $opts as $o ) {
-                    $result['names'][] = $o;
-                    $result['slugs'][] = sanitize_title( $o );
-                }
-            }
-            break; // Found it
-        }
-        return $result;
-    }
-
-    private function output_wc_variation_items( $product, $settings, $base_data ) {
-        $variations = $product->get_available_variations();
-        if ( empty( $variations ) ) return;
-        $parent_sku = $base_data['sku'] ?: 'product-' . $product->get_id(); // B2
-        $currency = $base_data['currency'];
-        foreach ( $variations as $var ) {
-            $var_id = $var['variation_id'];
-            $variation = wc_get_product( $var_id );
-            if ( ! $variation ) continue;
-            $var_sku = $variation->get_sku() ?: 'var-' . $var_id;
-            $regular = floatval( $variation->get_regular_price() );
-            $sale = floatval( $variation->get_sale_price() );
-            $price = $regular > 0 ? $regular : floatval( $variation->get_price() ); // B3
-            $is_sale = ( $sale > 0 && $sale < $regular );
-            if ( $price <= 0 ) continue;
-            $stock = $variation->is_in_stock() ? 'in_stock' : 'out_of_stock';
-            $size = $variation->get_attribute( 'pa_size' ) ?: $variation->get_attribute( 'size' ) ?: '';
-            $color = $variation->get_attribute( 'pa_color' ) ?: $variation->get_attribute( 'color' ) ?: '';
-            // 2.1.12: "Any" variation -> expand by parent attributes via helper
-            $_expand = array();
-            $_size_attr = 'size';
-            $_color_attr = 'color';
-            $_size_slugs = array();
-            $_color_slugs = array();
-            if ( empty( $size ) || empty( $color ) ) {
-                $_sv = $this->get_expand_attr_values( $product, 'size' );
-                $_cv = $this->get_expand_attr_values( $product, 'color' );
-                $_size_attr = $_sv['attr_name'];
-                $_color_attr = $_cv['attr_name'];
-                $_ss = ! empty( $size ) ? array( $size ) : $_sv['names'];
-                $_cc = ! empty( $color ) ? array( $color ) : $_cv['names'];
-                $_size_slugs = ! empty( $size ) ? array( sanitize_title( $size ) ) : $_sv['slugs'];
-                $_color_slugs = ! empty( $color ) ? array( sanitize_title( $color ) ) : $_cv['slugs'];
-                if ( empty( $_ss ) ) $_ss = array( '' );
-                if ( empty( $_cc ) ) $_cc = array( '' );
-                if ( empty( $_size_slugs ) ) $_size_slugs = array( '' );
-                if ( empty( $_color_slugs ) ) $_color_slugs = array( '' );
-                foreach ( $_ss as $_si => $_s ) {
-                    foreach ( $_cc as $_ci => $_c ) {
-                        $_expand[] = array( $_s, $_c, $_size_slugs[$_si] ?? '', $_color_slugs[$_ci] ?? '' );
-                    }
-                }
-            }
-            if ( empty( $_expand ) ) $_expand = array( array( $size, $color, '', '' ) );
-            $img_id = $variation->get_image_id() ?: $product->get_image_id();
-            $image = $img_id ? wp_get_attachment_url( $img_id ) : $base_data['image'];
-            $link = $variation->get_permalink(); // B1
-            $gtin_data = $this->get_gtin_mpn( $var_id );
-            foreach ( $_expand as $_e ) {
-                list( $esize, $ecolor, $esize_slug, $ecolor_slug ) = $_e;
-            $item = array(
-                'id' => $var_sku . ( $esize ? '-' . sanitize_title( $esize ) : '' ) . ( $ecolor ? '-' . sanitize_title( $ecolor ) : '' ),
-                'item_group_id' => $parent_sku,
-                'title' => $this->variation_title( $base_data['title'], $esize, $ecolor ), // B5
-                'description' => $base_data['description'],
-                'link' => $link,
-                'image_link' => $image,
-                'price' => number_format( $price, 2, '.', '' ) . ' ' . $currency,
-                'sale_price' => isset($is_sale) && $is_sale ? number_format( $sale, 2, '.', '' ) . ' ' . $currency : '',
-                'availability' => $stock,
-                'condition' => 'new',
-                'brand' => $base_data['brand'],
-                'google_product_category' => $base_data['google_category'],
-                'gender' => $base_data['gender'],
-                'age_group' => $base_data['age_group'],
-                'shipping' => $base_data['shipping'],
-                'return_policy_url' => $base_data['return_policy_url'],
-            );
-            if ( $esize ) $item['size'] = $esize;
-            if ( $ecolor ) $item['color'] = $ecolor;
-            if ( ! empty( $gtin_data['gtin'] ) ) {
-                $item['gtin'] = $gtin_data['gtin'];
-            } elseif ( ! empty( $gtin_data['mpn'] ) ) {
-                $item['mpn'] = $gtin_data['mpn'];
-            } else {
-                $item['identifier_exists'] = 'no';
-            }
-            // 2.1.10: link with pre-selected attributes when expanding
-            if ( $esize || $ecolor ) {
-                $_q = array();
-                if ( $esize ) $_q['attribute_' . $_size_attr] = $esize_slug ?: sanitize_title( $esize );
-                if ( $ecolor ) $_q['attribute_' . $_color_attr] = $ecolor_slug ?: sanitize_title( $ecolor );
-                if ( $_q ) $item['link'] = add_query_arg( $_q, $item['link'] );
-            }
-            $this->output_item( $item );
-            } // end foreach $_expand
-        }
-    }
-
-    /**
-     * 22.2.4: Get GTIN/MPN from meta
-     */
-/**
-     * B5: Title variation voi thuoc tinh (neu <=150 ky tu)
-     */
-    private function variation_title( $base, $size, $color ) {
-        $parts = array();
-        if ( $color ) $parts[] = $color;
-        if ( $size ) $parts[] = $size;
-        if ( empty( $parts ) ) return $base;
-        $suffix = ' - ' . implode( ' / ', $parts );
-        $full = $base . $suffix;
-        return ( strlen( $full ) <= 150 ) ? $full : $base;
-    }
-
-    private function get_gtin_mpn( $product_id ) {
-        $gtin = get_post_meta( $product_id, '_global_unique_id', true );
-        if ( ! $gtin ) $gtin = get_post_meta( $product_id, '_gtin', true );
-        $mpn = get_post_meta( $product_id, '_mpn', true );
-        return array( 'gtin' => $gtin, 'mpn' => $mpn );
-    }
     
     /**
      * Get shipping data for feed
@@ -769,19 +532,8 @@ class POD_GMC_Feed {
         echo '<description><![CDATA[' . $this->sanitize_for_xml( $data['description'] ) . ']]></description>' . "\n";
         echo '<link>' . esc_url( $data['link'] ) . '</link>' . "\n";
         echo '<g:price>' . esc_html( $data['price'] ) . '</g:price>' . "\n";
-        if ( ! empty( $data['sale_price'] ) ) {
-            echo '<g:sale_price>' . esc_html( $data['sale_price'] ) . '</g:sale_price>' . "\n";
-        }
         echo '<g:availability>' . esc_html( $data['availability'] ) . '</g:availability>' . "\n";
         echo '<g:condition>' . esc_html( $data['condition'] ) . '</g:condition>' . "\n";
-        // 22.2.4: GTIN/MPN or identifier_exists
-        if ( ! empty( $data['gtin'] ) ) {
-            echo '<g:gtin>' . esc_html( $data['gtin'] ) . '</g:gtin>' . "\n";
-        } elseif ( ! empty( $data['mpn'] ) ) {
-            echo '<g:mpn>' . esc_html( $data['mpn'] ) . '</g:mpn>' . "\n";
-        } else {
-            echo '<g:identifier_exists>no</g:identifier_exists>' . "\n";
-        }
         
         // Image
         if ( ! empty( $data['image_link'] ) ) {
@@ -906,7 +658,7 @@ class POD_GMC_Feed {
         }
 
         return array(
-            'include_all_products'      => ( get_option( 'pod_gmc_include_all', false ) || get_option( 'pod_gmc_feed_include_all', false ) ),
+            'include_all_products'      => get_option( 'pod_gmc_include_all', false ),
             'include_additional_images' => get_option( 'pod_gmc_include_additional_images', false ),
             'variation_mode'            => get_option( 'pod_gmc_variation_mode', 'all' ), // 'all' | 'first_only'
             'included_categories'       => $included_categories, // [] = all categories

@@ -419,7 +419,25 @@ class SAC_Orders {
 				'quantity'     => (int) $item->get_quantity(),
 				'total'        => (float) $item->get_total(),
 				'sku'          => $product ? ( $product->get_sku() ?: '' ) : '',
-				'image_url'    => $image_url,
+				'image_url'     => $image_url,
+				'pod_variation' => array_filter( array(
+					'fit'        => (string) $item->get_meta( '_pod_variation_fit', true ),
+					'style'      => (string) $item->get_meta( '_pod_variation_style', true ),
+					'size'       => (string) $item->get_meta( '_pod_variation_size', true ),
+					'color'      => (string) $item->get_meta( '_pod_variation_color', true ),
+					'sku_prefix' => (string) $item->get_meta( '_pod_variation_sku_prefix', true ),
+					'price'      => $item->get_meta( '_pod_variation_price', true ),
+				), function( $v ) { return $v !== '' && $v !== null; } ),
+				'pod_options'   => ( function() use ( $item ) {
+					$raw = $item->get_meta( '_pod_options_json', true );
+					if ( is_string( $raw ) && $raw !== '' ) {
+						$dec = json_decode( $raw, true );
+						if ( is_array( $dec ) ) {
+							return $dec;
+						}
+					}
+					return null;
+				} )(),
 			);
 		}
 
