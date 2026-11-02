@@ -126,33 +126,7 @@ class POD_Custom_Fields {
             <?php wp_nonce_field( 'pod_custom_fields', 'pod_custom_fields_nonce' ); ?>
         </div>
         
-        <?php if ( $is_optional ) : ?>
-        <script>
-        jQuery(function($) {
-            var $container = $('.pod-custom-fields-container[data-optional="true"]');
-            var $checkbox = $container.find('#pod_enable_personalization');
-            var $wrapper = $container.find('.pod-custom-fields-wrapper');
-            var $inputs = $wrapper.find('input, select, textarea');
-            
-            // Initially disable all inputs
-            $inputs.prop('disabled', true);
-            
-            $checkbox.on('change', function() {
-                if ($(this).is(':checked')) {
-                    $wrapper.slideDown(200);
-                    $inputs.prop('disabled', false);
-                } else {
-                    $wrapper.slideUp(200);
-                    $inputs.prop('disabled', true).val('');
-                    // Clear file previews
-                    $wrapper.find('.pod-file-preview').hide();
-                    $wrapper.find('.pod-file-dropzone').show();
-                    $wrapper.find('.pod-file-path').val('');
-                }
-            });
-        });
-        </script>
-        <?php endif; ?>
+        
         <?php
     }
 

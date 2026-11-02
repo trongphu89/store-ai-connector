@@ -1013,7 +1013,7 @@ class POD_Option_Forms {
         wp_enqueue_script(
             'pod-option-forms-js',
             $plugin_base_url . 'assets/js/pod-option-forms.js',
-            array( 'jquery' ),
+            array(),
             SAC_VERSION,
             true
         );

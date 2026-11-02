@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.5' );
+define( 'SAC_VERSION',           '2.5.6' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -66,7 +66,7 @@ function sac_enqueue_scripts() {
         wp_enqueue_script(
             'pod-custom-fields-js',
             plugin_dir_url( SAC_PLUGIN_FILE ) . 'assets/js/custom-fields.js',
-            array( 'jquery' ),
+            array(),
             SAC_VERSION,
             true
         );
@@ -2969,10 +2969,33 @@ function sac_migrate_images_to_r2( $request ) {
         clean_post_cache( $pid );
 
         $deleted_local_attachments = 0;
-        foreach ( $old_ids as $old_id ) {
-            if ( ! in_array( $old_id, $new_ids, true ) ) {
-                wp_delete_attachment( $old_id, true );
-                $deleted_local_attachments++;
+        if ( ! empty( $new_ids ) ) {
+            foreach ( $old_ids as $old_id ) {
+                if ( ! in_array( $old_id, $new_ids, true ) ) {
+                    $still_used = get_posts( array(
+                        'post_type'      => 'product',
+                        'post_status'    => 'any',
+                        'posts_per_page' => 1,
+                        'fields'         => 'ids',
+                        'post__not_in'   => array( $pid ),
+                        'meta_query'     => array(
+                            'relation' => 'OR',
+                            array(
+                                'key'   => '_thumbnail_id',
+                                'value' => strval( $old_id ),
+                            ),
+                            array(
+                                'key'     => '_product_image_gallery',
+                                'value'   => strval( $old_id ),
+                                'compare' => 'LIKE',
+                            ),
+                        ),
+                    ) );
+                    if ( empty( $still_used ) ) {
+                        wp_delete_attachment( $old_id, true );
+                        $deleted_local_attachments++;
+                    }
+                }
             }
         }
 
