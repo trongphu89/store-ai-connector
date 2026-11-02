@@ -11,9 +11,10 @@
     max-width: 600px;
 }
 
-/* Live Price Bar inside Option Form */
+/* Live Price Bar inside Option Form: hidden by default inside standard WooCommerce summary to prevent double price & double stock pill.
+   Only shown via `.is-fallback-visible` when a custom page builder removes the native WooCommerce `.price` element. */
 .pod-of-live-price-bar {
-    display: flex;
+    display: none;
     align-items: center;
     gap: 12px;
     margin-bottom: 16px;
@@ -21,6 +22,22 @@
     background: #f8fafc;
     border: 1px solid #e2e8f0;
     border-radius: 8px;
+}
+
+.pod-of-live-price-bar.is-fallback-visible {
+    display: flex;
+}
+
+/* Suppress duplicate theme-rendered Size Chart trigger whenever POD Option Forms controls options on the product */
+form.cart .pod-of-container ~ [data-ct-sizechart],
+form.cart .pod-of-container ~ .ct-sizechart-link,
+.summary:has(.pod-of-container) [data-ct-sizechart],
+.summary:has(.pod-of-container) .ct-sizechart-link,
+.entry-summary:has(.pod-of-container) [data-ct-sizechart],
+.entry-summary:has(.pod-of-container) .ct-sizechart-link,
+body.pod-option-forms-active [data-ct-sizechart],
+body.pod-option-forms-active .ct-sizechart-link {
+    display: none !important;
 }
 
 .pod-of-live-price-amount {

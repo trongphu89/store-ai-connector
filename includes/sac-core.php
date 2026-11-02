@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.6' );
+define( 'SAC_VERSION',           '2.5.7' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -336,6 +336,12 @@ function sac_register_routes() {
     register_rest_route( 'sac/v1', '/migrate-images-to-r2', array(
         'methods'             => 'POST',
         'callback'            => 'sac_migrate_images_to_r2',
+        'permission_callback' => 'sac_verify',
+    ) );
+
+    register_rest_route( 'sac/v1', '/media-domain-config', array(
+        'methods'             => array( 'GET', 'POST' ),
+        'callback'            => 'sac_handle_media_domain_config',
         'permission_callback' => 'sac_verify',
     ) );
 
@@ -2704,10 +2710,12 @@ function sac_save_option_forms( $request ) {
             foreach ( POD_Option_Forms::get_starter_presets() as $preset ) {
                 POD_Option_Forms::upsert_form( $preset );
             }
+            do_action( 'litespeed_purge_all' );
             return rest_ensure_response( array( 'success' => true, 'forms' => POD_Option_Forms::get_forms() ) );
         }
         if ( $act === 'import_wcpa' ) {
             $imported = POD_Option_Forms::import_from_wcpa();
+            do_action( 'litespeed_purge_all' );
             return rest_ensure_response( array(
                 'success'  => true,
                 'imported' => $imported,
@@ -2725,6 +2733,7 @@ function sac_save_option_forms( $request ) {
                 POD_Option_Forms::upsert_form( $form );
             }
         }
+        do_action( 'litespeed_purge_all' );
         return rest_ensure_response( array(
             'success' => true,
             'forms'   => POD_Option_Forms::get_forms(),
@@ -2733,6 +2742,7 @@ function sac_save_option_forms( $request ) {
 
     if ( isset( $params['form'] ) && is_array( $params['form'] ) ) {
         $saved = POD_Option_Forms::upsert_form( $params['form'] );
+        do_action( 'litespeed_purge_all' );
         return rest_ensure_response( array(
             'success' => true,
             'form'    => $saved,
@@ -2851,6 +2861,11 @@ function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) 
     }
 
     update_post_meta( $att_id, '_pod_external_r2_url', $clean_url );
+    if ( preg_match( '#^(https?://[^/]+/(?:r2-cdn|api/v1/public/store-assets)/[^/]+)/#i', $clean_url, $origin_m ) ) {
+        if ( get_option( 'sac_r2_upstream_origin', '' ) !== $origin_m[1] ) {
+            update_option( 'sac_r2_upstream_origin', $origin_m[1], true );
+        }
+    }
     update_post_meta( $att_id, '_wp_attached_file', 'r2-external/' . sanitize_file_name( $filename ) );
     update_post_meta( $att_id, '_wp_attachment_metadata', array(
         'width'  => 1600,
@@ -3017,10 +3032,197 @@ function sac_migrate_images_to_r2( $request ) {
     ) );
 }
 
+/**
+ * Configure or inspect custom CDN / public image domain for R2-backed media (`GET|POST /sac/v1/media-domain-config`).
+ * When `custom_cdn_domain` is empty, Store AI Connector automatically cloaks Hub R2 URLs under the store's own
+ * first-party domain (`/cdn-media/...` or `/?pod_media=...`) so the upstream Hub hostname is never exposed.
+ */
+function sac_handle_media_domain_config( $request ) {
+    if ( $request->get_method() === 'POST' ) {
+        $params     = $request->get_json_params();
+        $raw_domain = isset( $params['custom_cdn_domain'] ) ? trim( (string) $params['custom_cdn_domain'] ) : '';
+        if ( $raw_domain !== '' ) {
+            if ( strpos( $raw_domain, 'http://' ) !== 0 && strpos( $raw_domain, 'https://' ) !== 0 ) {
+                $raw_domain = 'https://' . ltrim( $raw_domain, '/' );
+            }
+            $clean_domain = rtrim( esc_url_raw( $raw_domain ), '/' );
+            update_option( 'sac_custom_cdn_domain', $clean_domain, true );
+        } else {
+            delete_option( 'sac_custom_cdn_domain' );
+        }
+        do_action( 'litespeed_purge_all' );
+    }
+
+    $custom_cdn = trim( (string) get_option( 'sac_custom_cdn_domain', '' ) );
+    $pretty     = get_option( 'permalink_structure' ) !== '';
+    return rest_ensure_response( array(
+        'success'           => true,
+        'mode'              => $custom_cdn !== '' ? 'custom_cdn_domain' : 'store_first_party_cloak',
+        'custom_cdn_domain' => $custom_cdn !== '' ? $custom_cdn : null,
+        'public_base_url'   => $custom_cdn !== ''
+            ? $custom_cdn
+            : ( $pretty ? rtrim( home_url( '/cdn-media' ), '/' ) : home_url( '/?pod_media=' ) ),
+    ) );
+}
+
+/**
+ * Rewrites any internal Hub `/r2-cdn/<storeRef>/<path>` URL into either:
+ * 1) The store's configured `sac_custom_cdn_domain` (e.g. `https://cdn.yourdomain.com/products/...`), OR
+ * 2) Automatic first-party store-domain cloaking (`https://<store-domain>/cdn-media/products/...` when pretty permalinks
+ *    are enabled, or `https://<store-domain>/?pod_media=products/...` for plain permalinks).
+ * Ensures the upstream Hub domain is never exposed in HTML, OpenGraph, JSON-LD, or browser Network requests.
+ */
+function sac_cloak_external_media_url( $url ) {
+    if ( ! is_string( $url ) || $url === '' ) {
+        return $url;
+    }
+    if ( preg_match( '#^(https?://[^/]+/(?:r2-cdn|api/v1/public/store-assets)/[^/]+)/(.+)$#i', $url, $m ) ) {
+        $upstream_origin = $m[1];
+        $rel_path        = ltrim( $m[2], '/' );
+
+        if ( get_option( 'sac_r2_upstream_origin', '' ) !== $upstream_origin ) {
+            update_option( 'sac_r2_upstream_origin', $upstream_origin, true );
+        }
+
+        $custom_cdn = rtrim( trim( (string) get_option( 'sac_custom_cdn_domain', '' ) ), '/' );
+        if ( $custom_cdn !== '' && stripos( $custom_cdn, '/r2-cdn/' ) === false ) {
+            return $custom_cdn . '/' . $rel_path;
+        }
+
+        if ( get_option( 'permalink_structure' ) !== '' ) {
+            return home_url( '/cdn-media/' . $rel_path );
+        }
+        return add_query_arg( 'pod_media', $rel_path, home_url( '/' ) );
+    }
+    return $url;
+}
+
+/**
+ * Streams R2 image bytes directly under the store's first-party domain (`/cdn-media/<path>` or `/?pod_media=<path>`)
+ * with immutable 1-year edge caching headers (Cloudflare + LiteSpeed friendly), zero WordPress disk usage,
+ * and zero 301/302 redirects (keeping the upstream Hub hostname completely invisible in DevTools Network).
+ */
+function sac_serve_cloaked_r2_media() {
+    $rel_path = '';
+    if ( ! empty( $_GET['pod_media'] ) && is_string( $_GET['pod_media'] ) ) {
+        $rel_path = ltrim( wp_unslash( $_GET['pod_media'] ), '/' );
+    } elseif ( ! empty( $_SERVER['REQUEST_URI'] ) ) {
+        $req_path  = (string) strtok( wp_unslash( $_SERVER['REQUEST_URI'] ), '?' );
+        $home_path = rtrim( (string) wp_parse_url( home_url( '/' ), PHP_URL_PATH ), '/' );
+        if ( $home_path !== '' && strpos( $req_path, $home_path ) === 0 ) {
+            $req_path = substr( $req_path, strlen( $home_path ) );
+        }
+        if ( strpos( $req_path, '/cdn-media/' ) === 0 ) {
+            $rel_path = ltrim( substr( $req_path, strlen( '/cdn-media/' ) ), '/' );
+        }
+    }
+
+    if ( $rel_path === '' ) {
+        return;
+    }
+
+    $rel_path = rawurldecode( $rel_path );
+    if (
+        strpos( $rel_path, '..' ) !== false ||
+        strpos( $rel_path, "\0" ) !== false ||
+        strpos( $rel_path, '\\' ) !== false ||
+        ! preg_match( '#^[a-zA-Z0-9/_\-\.]+\.(webp|jpg|jpeg|png|gif|avif)$#i', $rel_path, $ext_m )
+    ) {
+        status_header( 400 );
+        exit;
+    }
+
+    $etag = 'W/"sac-' . md5( $rel_path ) . '"';
+    $if_none_match = isset( $_SERVER['HTTP_IF_NONE_MATCH'] ) ? trim( wp_unslash( $_SERVER['HTTP_IF_NONE_MATCH'] ) ) : '';
+    if ( $if_none_match !== '' && $if_none_match === $etag ) {
+        status_header( 304 );
+        header( 'Cache-Control: public, max-age=31536000, immutable' );
+        header( 'ETag: ' . $etag );
+        exit;
+    }
+
+    $upstream_origin = rtrim( trim( (string) get_option( 'sac_r2_upstream_origin', '' ) ), '/' );
+    if ( $upstream_origin === '' ) {
+        global $wpdb;
+        $sample = $wpdb->get_var(
+            "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_pod_external_r2_url' AND (meta_value LIKE '%/r2-cdn/%' OR meta_value LIKE '%/api/v1/public/store-assets/%') ORDER BY meta_id DESC LIMIT 1"
+        );
+        if ( is_string( $sample ) && preg_match( '#^(https?://[^/]+/(?:r2-cdn|api/v1/public/store-assets)/[^/]+)/#i', $sample, $sm ) ) {
+            $upstream_origin = rtrim( $sm[1], '/' );
+            update_option( 'sac_r2_upstream_origin', $upstream_origin, true );
+        }
+    }
+
+    $upstream_url = '';
+    if ( $upstream_origin !== '' ) {
+        $upstream_url = $upstream_origin . '/' . $rel_path;
+    } else {
+        global $wpdb;
+        $like = '%/' . $wpdb->esc_like( basename( $rel_path ) );
+        $found = $wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT meta_value FROM {$wpdb->postmeta} WHERE meta_key = '_pod_external_r2_url' AND meta_value LIKE %s ORDER BY meta_id DESC LIMIT 1",
+                $like
+            )
+        );
+        if ( is_string( $found ) && $found !== '' ) {
+            $upstream_url = $found;
+        }
+    }
+
+    if ( $upstream_url === '' ) {
+        status_header( 404 );
+        exit;
+    }
+
+    $resp = wp_remote_get( $upstream_url, array(
+        'timeout'   => 20,
+        'sslverify' => false,
+    ) );
+    if ( is_wp_error( $resp ) || intval( wp_remote_retrieve_response_code( $resp ) ) !== 200 ) {
+        status_header( 404 );
+        exit;
+    }
+
+    $body = wp_remote_retrieve_body( $resp );
+    if ( $body === '' ) {
+        status_header( 404 );
+        exit;
+    }
+
+    $ext  = strtolower( $ext_m[1] );
+    $mime = 'image/webp';
+    if ( $ext === 'jpg' || $ext === 'jpeg' ) {
+        $mime = 'image/jpeg';
+    } elseif ( $ext === 'png' ) {
+        $mime = 'image/png';
+    } elseif ( $ext === 'gif' ) {
+        $mime = 'image/gif';
+    } elseif ( $ext === 'avif' ) {
+        $mime = 'image/avif';
+    }
+
+    while ( ob_get_level() > 0 ) {
+        @ob_end_clean();
+    }
+
+    status_header( 200 );
+    header( 'Content-Type: ' . $mime );
+    header( 'Content-Length: ' . strlen( $body ) );
+    header( 'Cache-Control: public, max-age=31536000, immutable' );
+    header( 'X-LiteSpeed-Cache-Control: public, max-age=31536000' );
+    header( 'ETag: ' . $etag );
+    header( 'X-Content-Type-Options: nosniff' );
+    header( 'Access-Control-Allow-Origin: *' );
+    echo $body; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+    exit;
+}
+add_action( 'init', 'sac_serve_cloaked_r2_media', 0 );
+
 add_filter( 'wp_get_attachment_url', function( $url, $post_id ) {
     $r2_url = get_post_meta( $post_id, '_pod_external_r2_url', true );
     if ( ! empty( $r2_url ) ) {
-        return $r2_url;
+        return sac_cloak_external_media_url( $r2_url );
     }
     return $url;
 }, 10, 2 );
@@ -3028,10 +3230,28 @@ add_filter( 'wp_get_attachment_url', function( $url, $post_id ) {
 add_filter( 'wp_get_attachment_image_src', function( $image, $attachment_id, $size, $icon ) {
     $r2_url = get_post_meta( $attachment_id, '_pod_external_r2_url', true );
     if ( ! empty( $r2_url ) ) {
-        return array( $r2_url, 1600, 1600, false );
+        return array( sac_cloak_external_media_url( $r2_url ), 1600, 1600, false );
     }
     return $image;
 }, 10, 4 );
+
+add_filter( 'get_post_metadata', function( $value, $object_id, $meta_key, $single ) {
+    static $in_cloak_guard = false;
+    if (
+        $in_cloak_guard ||
+        ! in_array( $meta_key, array( '_og_image', '_yoast_wpseo_opengraph-image', 'rank_math_facebook_image', '_twitter_image' ), true )
+    ) {
+        return $value;
+    }
+    $in_cloak_guard = true;
+    $raw            = get_post_meta( $object_id, $meta_key, true );
+    $in_cloak_guard = false;
+    if ( is_string( $raw ) && $raw !== '' ) {
+        $cloaked = sac_cloak_external_media_url( $raw );
+        return $single ? $cloaked : array( $cloaked );
+    }
+    return $value;
+}, 20, 4 );
 
 add_filter( 'wp_get_attachment_metadata', function( $data, $post_id ) {
     $r2_url = get_post_meta( $post_id, '_pod_external_r2_url', true );

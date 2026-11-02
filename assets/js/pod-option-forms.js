@@ -15,11 +15,45 @@
         return sym + Number(amount || 0).toFixed(2);
     }
 
+    function findNativeSummaryPriceTargets() {
+        var insTargets = document.querySelectorAll(
+            '.summary .price ins .woocommerce-Price-amount bdi, .entry-summary .price ins .woocommerce-Price-amount bdi, .product-page-price ins .woocommerce-Price-amount bdi'
+        );
+        if (insTargets && insTargets.length > 0) {
+            return insTargets;
+        }
+        return document.querySelectorAll(
+            '.summary .price .woocommerce-Price-amount bdi, .entry-summary .price .woocommerce-Price-amount bdi, .product-page-price .woocommerce-Price-amount bdi'
+        );
+    }
+
     function initContainer(container) {
         if (!container || container.getAttribute('data-pod-of-ready') === '1') {
             return;
         }
         container.setAttribute('data-pod-of-ready', '1');
+        if (document.body) {
+            document.body.classList.add('pod-option-forms-active');
+        }
+
+        // Prevent duplicate Price/Stock bar & duplicate theme Size Chart on single product pages
+        var liveBar = container.querySelector('.pod-of-live-price-bar');
+        var nativePriceEls = findNativeSummaryPriceTargets();
+        if (liveBar) {
+            if (!nativePriceEls || nativePriceEls.length === 0) {
+                liveBar.classList.add('is-fallback-visible');
+            } else {
+                liveBar.classList.remove('is-fallback-visible');
+                liveBar.style.display = 'none';
+            }
+        }
+
+        var duplicateThemeCharts = document.querySelectorAll(
+            '.summary [data-ct-sizechart], .summary .ct-sizechart-link, .entry-summary [data-ct-sizechart], .entry-summary .ct-sizechart-link, form.cart [data-ct-sizechart], form.cart .ct-sizechart-link'
+        );
+        for (var dc = 0; dc < duplicateThemeCharts.length; dc++) {
+            duplicateThemeCharts[dc].style.display = 'none';
+        }
 
         var basePrice = parseFloat(container.getAttribute('data-base-price')) || 24.99;
         var showSummary = container.getAttribute('data-show-summary') === '1';
@@ -148,11 +182,9 @@
                 liveAmtEl.textContent = formattedFinal;
             }
 
-            var summaryPriceEl = document.querySelector(
-                '.summary .price .woocommerce-Price-amount bdi, .entry-summary .price .woocommerce-Price-amount bdi, .product-page-price .woocommerce-Price-amount bdi'
-            );
-            if (summaryPriceEl) {
-                summaryPriceEl.textContent = formattedFinal;
+            var summaryPriceTargets = findNativeSummaryPriceTargets();
+            for (var sp = 0; sp < summaryPriceTargets.length; sp++) {
+                summaryPriceTargets[sp].textContent = formattedFinal;
             }
 
             var summaryBox = container.querySelector('.pod-of-addon-summary');

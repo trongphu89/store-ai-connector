@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management, GMC setup, and lightweight Virtual Option Forms.
- * Version:     2.5.6
+ * Version:     2.5.7
  * Author:      POD AI Hub
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -17,8 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Automatic OPcache & LiteSpeed Cache invalidation on plugin upgrade (CyberPanel / OpenLiteSpeed safe).
  */
-if ( get_option( 'sac_installed_version', '' ) !== '2.5.6' ) {
-    update_option( 'sac_installed_version', '2.5.6', true );
+if ( get_option( 'sac_installed_version', '' ) !== '2.5.7' ) {
+    update_option( 'sac_installed_version', '2.5.7', true );
     if ( function_exists( 'opcache_reset' ) ) {
         @opcache_reset();
     }
@@ -28,6 +28,7 @@ if ( get_option( 'sac_installed_version', '' ) !== '2.5.6' ) {
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms.php', true );
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms-admin.php', true );
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-custom-fields.php', true );
+        @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-seo-output.php', true );
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-sac-orders.php', true );
     }
     if ( function_exists( 'do_action' ) ) {
