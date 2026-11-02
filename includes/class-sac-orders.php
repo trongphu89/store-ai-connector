@@ -438,6 +438,25 @@ class SAC_Orders {
 					}
 					return null;
 				} )(),
+				'pod_custom_fields' => ( function() use ( $item, $item_id ) {
+					$out = array();
+					$upload_dir = wp_upload_dir();
+					foreach ( $item->get_meta_data() as $meta ) {
+						$key = (string) $meta->key;
+						$val = $meta->value;
+						if ( strpos( $key, '_pod_custom_file_' ) === 0 && ! empty( $val ) ) {
+							$field_key = substr( $key, strlen( '_pod_custom_file_' ) );
+							$file_url  = $upload_dir['baseurl'] . '/' . ltrim( (string) $val, '/' );
+							$out[ $field_key ] = $file_url;
+						} elseif ( strpos( $key, '_pod_custom_' ) === 0 && strpos( $key, '_pod_custom_file_' ) !== 0 && $val !== '' && $val !== null ) {
+							$field_key = substr( $key, strlen( '_pod_custom_' ) );
+							if ( ! isset( $out[ $field_key ] ) ) {
+								$out[ $field_key ] = (string) $val;
+							}
+						}
+					}
+					return ! empty( $out ) ? $out : null;
+				} )(),
 			);
 		}
 

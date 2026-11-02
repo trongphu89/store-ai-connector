@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.2' );
+define( 'SAC_VERSION',           '2.5.3' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -330,6 +330,12 @@ function sac_register_routes() {
     register_rest_route( 'sac/v1', '/clear-product-gallery', array(
         'methods'             => 'POST',
         'callback'            => 'sac_clear_product_gallery',
+        'permission_callback' => 'sac_verify',
+    ) );
+
+    register_rest_route( 'sac/v1', '/migrate-images-to-r2', array(
+        'methods'             => 'POST',
+        'callback'            => 'sac_migrate_images_to_r2',
         'permission_callback' => 'sac_verify',
     ) );
 
@@ -1020,6 +1026,7 @@ function sac_bulk_delete( $request ) {
                 $results['products'][] = array( 'id' => $id, 'success' => false );
             }
         }
+        do_action( 'litespeed_purge_all' );
     }
 
     // Delete posts
@@ -1867,6 +1874,7 @@ function sac_create_variable_product( $request ) {
     $short_description = isset( $params['short_description'] ) ? wp_kses_post( $params['short_description'] ) : '';
     $status = isset( $params['status'] ) ? sanitize_text_field( $params['status'] ) : 'draft';
     $image_ids = isset( $params['image_ids'] ) ? array_values( array_filter( array_map( 'intval', (array) $params['image_ids'] ) ) ) : array();
+    $image_alts = isset( $params['image_alts'] ) && is_array( $params['image_alts'] ) ? $params['image_alts'] : array();
     if ( empty( $image_ids ) ) {
         $raw_urls = array();
         if ( ! empty( $params['image_urls'] ) && is_array( $params['image_urls'] ) ) {
@@ -1875,7 +1883,7 @@ function sac_create_variable_product( $request ) {
             $raw_urls = $params['mockupUrls'];
         }
         if ( ! empty( $raw_urls ) ) {
-            $image_ids = sac_resolve_virtual_r2_attachment_ids( $raw_urls, $name );
+            $image_ids = sac_resolve_virtual_r2_attachment_ids( $raw_urls, $name, $image_alts );
         }
     }
     $category_ids = isset( $params['category_ids'] ) ? array_map( 'intval', $params['category_ids'] ) : array();
@@ -1943,6 +1951,8 @@ function sac_create_variable_product( $request ) {
             }
 
             POD_Option_Forms::maybe_seed_default_forms();
+            do_action( 'litespeed_purge_post', $product_id );
+            do_action( 'litespeed_purge_all' );
 
             return rest_ensure_response( array(
                 'success'            => true,
@@ -2789,6 +2799,13 @@ function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) 
         return 0;
     }
 
+    $path_part = wp_parse_url( $clean_url, PHP_URL_PATH );
+    $filename  = $path_part ? basename( $path_part ) : 'r2-product-image.webp';
+    $ext       = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
+    $mime_type = ( $ext === 'jpg' || $ext === 'jpeg' ) ? 'image/jpeg' : ( $ext === 'webp' ? 'image/webp' : 'image/png' );
+    $seo_slug  = sanitize_title( pathinfo( $filename, PATHINFO_FILENAME ) );
+    $att_title = ! empty( $title ) ? sanitize_text_field( $title ) : sanitize_text_field( str_replace( '-', ' ', $seo_slug ) );
+
     // Reuse existing virtual attachment for this exact R2 URL if present
     $existing = get_posts( array(
         'post_type'      => 'attachment',
@@ -2799,17 +2816,16 @@ function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) 
         'meta_value'     => $clean_url,
     ) );
     if ( ! empty( $existing[0] ) ) {
-        return intval( $existing[0] );
+        $existing_id = intval( $existing[0] );
+        if ( ! empty( $alt ) ) {
+            update_post_meta( $existing_id, '_wp_attachment_image_alt', sanitize_text_field( $alt ) );
+        }
+        return $existing_id;
     }
 
-    $path_part = wp_parse_url( $clean_url, PHP_URL_PATH );
-    $filename  = $path_part ? basename( $path_part ) : 'r2-product-image.png';
-    $ext       = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
-    $mime_type = ( $ext === 'jpg' || $ext === 'jpeg' ) ? 'image/jpeg' : ( $ext === 'webp' ? 'image/webp' : 'image/png' );
-
-    $att_title = ! empty( $title ) ? sanitize_text_field( $title ) : sanitize_text_field( pathinfo( $filename, PATHINFO_FILENAME ) );
-    $att_id    = wp_insert_post( array(
+    $att_id = wp_insert_post( array(
         'post_title'     => $att_title,
+        'post_name'      => $seo_slug,
         'post_content'   => '',
         'post_status'    => 'inherit',
         'post_type'      => 'attachment',
@@ -2824,8 +2840,8 @@ function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) 
     update_post_meta( $att_id, '_pod_external_r2_url', $clean_url );
     update_post_meta( $att_id, '_wp_attached_file', 'r2-external/' . sanitize_file_name( $filename ) );
     update_post_meta( $att_id, '_wp_attachment_metadata', array(
-        'width'  => 1200,
-        'height' => 1200,
+        'width'  => 1600,
+        'height' => 1600,
         'file'   => 'r2-external/' . sanitize_file_name( $filename ),
         'sizes'  => array(),
     ) );
@@ -2838,19 +2854,112 @@ function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) 
     return intval( $att_id );
 }
 
-function sac_resolve_virtual_r2_attachment_ids( $urls, $product_title = '' ) {
+function sac_resolve_virtual_r2_attachment_ids( $urls, $product_title = '', $image_alts = array() ) {
     if ( ! is_array( $urls ) ) {
         return array();
     }
     $ids = array();
     foreach ( $urls as $idx => $u ) {
-        $url_str = is_array( $u ) ? ( isset( $u['src'] ) ? $u['src'] : ( isset( $u['url'] ) ? $u['url'] : '' ) ) : (string) $u;
-        $att_id  = sac_create_virtual_r2_attachment( $url_str, $product_title ? ( $product_title . ' #' . ( $idx + 1 ) ) : '', $product_title );
+        $url_str  = is_array( $u ) ? ( isset( $u['src'] ) ? $u['src'] : ( isset( $u['url'] ) ? $u['url'] : '' ) ) : (string) $u;
+        $alt_text = ( is_array( $image_alts ) && ! empty( $image_alts[ $idx ] ) ) ? (string) $image_alts[ $idx ] : $product_title;
+        $title_tx = $product_title ? ( $idx === 0 ? $product_title : ( $product_title . ' - View ' . ( $idx + 1 ) ) ) : '';
+        $att_id   = sac_create_virtual_r2_attachment( $url_str, $title_tx, $alt_text );
         if ( $att_id > 0 ) {
             $ids[] = $att_id;
         }
     }
     return $ids;
+}
+
+/**
+ * Migrates existing WooCommerce products from local wp-content/uploads attachments to Virtual R2 URLs,
+ * optionally refreshing SEO fields (title, slug, short_description, tags, meta_data), and deletes old local disk files.
+ */
+function sac_migrate_images_to_r2( $request ) {
+    if ( ! function_exists( 'wc_get_product' ) ) {
+        return rest_ensure_response( array( 'success' => false, 'error' => 'WooCommerce not active' ) );
+    }
+
+    $params  = $request->get_json_params();
+    $items   = isset( $params['items'] ) && is_array( $params['items'] ) ? $params['items'] : array();
+    $results = array();
+
+    foreach ( $items as $item ) {
+        $pid = isset( $item['product_id'] ) ? intval( $item['product_id'] ) : 0;
+        if ( $pid <= 0 ) {
+            $results[] = array( 'product_id' => 0, 'success' => false, 'error' => 'Missing product_id' );
+            continue;
+        }
+        $product = wc_get_product( $pid );
+        if ( ! $product ) {
+            $results[] = array( 'product_id' => $pid, 'success' => false, 'error' => 'Product not found' );
+            continue;
+        }
+
+        $old_image_id = intval( $product->get_image_id() );
+        $old_gallery  = array_map( 'intval', (array) $product->get_gallery_image_ids() );
+        $old_ids      = array_values( array_unique( array_filter( array_merge( array( $old_image_id ), $old_gallery ) ) ) );
+
+        $new_title = ! empty( $item['title'] ) ? sanitize_text_field( $item['title'] ) : $product->get_name();
+        if ( ! empty( $item['title'] ) ) {
+            $product->set_name( $new_title );
+        }
+        if ( ! empty( $item['slug'] ) ) {
+            $product->set_slug( sanitize_title( $item['slug'] ) );
+        }
+        if ( isset( $item['short_description'] ) ) {
+            $product->set_short_description( wp_kses_post( $item['short_description'] ) );
+        }
+        if ( isset( $item['description'] ) ) {
+            $product->set_description( wp_kses_post( $item['description'] ) );
+        }
+
+        $raw_urls   = isset( $item['image_urls'] ) && is_array( $item['image_urls'] ) ? $item['image_urls'] : array();
+        $image_alts = isset( $item['image_alts'] ) && is_array( $item['image_alts'] ) ? $item['image_alts'] : array();
+        $new_ids    = sac_resolve_virtual_r2_attachment_ids( $raw_urls, $new_title, $image_alts );
+
+        if ( ! empty( $new_ids ) ) {
+            $product->set_image_id( $new_ids[0] );
+            $product->set_gallery_image_ids( count( $new_ids ) > 1 ? array_slice( $new_ids, 1 ) : array() );
+        }
+
+        $product->save();
+
+        if ( ! empty( $item['tags'] ) && is_array( $item['tags'] ) ) {
+            wp_set_object_terms( $pid, array_map( 'sanitize_text_field', $item['tags'] ), 'product_tag' );
+        }
+        if ( ! empty( $item['meta_data'] ) && is_array( $item['meta_data'] ) ) {
+            foreach ( $item['meta_data'] as $meta ) {
+                if ( isset( $meta['key'] ) && isset( $meta['value'] ) ) {
+                    update_post_meta( $pid, sanitize_key( $meta['key'] ), $meta['value'] );
+                }
+            }
+        }
+
+        $deleted_local_attachments = 0;
+        foreach ( $old_ids as $old_id ) {
+            if ( ! in_array( $old_id, $new_ids, true ) ) {
+                wp_delete_attachment( $old_id, true );
+                $deleted_local_attachments++;
+            }
+        }
+
+        do_action( 'litespeed_purge_post', $pid );
+        $results[] = array(
+            'product_id'                => $pid,
+            'success'                   => true,
+            'permalink'                 => get_permalink( $pid ),
+            'image_ids'                 => $new_ids,
+            'deleted_local_attachments' => $deleted_local_attachments,
+        );
+    }
+
+    do_action( 'litespeed_purge_all' );
+
+    return rest_ensure_response( array(
+        'success' => true,
+        'results' => $results,
+    ) );
 }
 
 add_filter( 'wp_get_attachment_url', function( $url, $post_id ) {
@@ -2864,10 +2973,23 @@ add_filter( 'wp_get_attachment_url', function( $url, $post_id ) {
 add_filter( 'wp_get_attachment_image_src', function( $image, $attachment_id, $size, $icon ) {
     $r2_url = get_post_meta( $attachment_id, '_pod_external_r2_url', true );
     if ( ! empty( $r2_url ) ) {
-        return array( $r2_url, 1200, 1200, false );
+        return array( $r2_url, 1600, 1600, false );
     }
     return $image;
 }, 10, 4 );
+
+add_filter( 'wp_get_attachment_metadata', function( $data, $post_id ) {
+    $r2_url = get_post_meta( $post_id, '_pod_external_r2_url', true );
+    if ( ! empty( $r2_url ) && ( empty( $data ) || ! is_array( $data ) ) ) {
+        return array(
+            'width'  => 1600,
+            'height' => 1600,
+            'file'   => 'r2-external/' . basename( (string) wp_parse_url( $r2_url, PHP_URL_PATH ) ),
+            'sizes'  => array(),
+        );
+    }
+    return $data;
+}, 10, 2 );
 
 add_filter( 'wp_calculate_image_srcset', function( $sources, $size_array, $image_src, $image_meta, $attachment_id ) {
     $r2_url = get_post_meta( $attachment_id, '_pod_external_r2_url', true );
