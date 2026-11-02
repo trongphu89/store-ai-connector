@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management, GMC setup, and lightweight Virtual Option Forms.
- * Version:     2.5.1
+ * Version:     2.5.2
  * Author:      POD AI Hub
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -17,8 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Automatic OPcache & LiteSpeed Cache invalidation on plugin upgrade (CyberPanel / OpenLiteSpeed safe).
  */
-if ( get_option( 'sac_installed_version', '' ) !== '2.5.1' ) {
-    update_option( 'sac_installed_version', '2.5.1', true );
+if ( get_option( 'sac_installed_version', '' ) !== '2.5.2' ) {
+    update_option( 'sac_installed_version', '2.5.2', true );
     if ( function_exists( 'opcache_reset' ) ) {
         @opcache_reset();
     }
@@ -75,7 +75,7 @@ if (
     }
 
     if ( ! defined( 'SAC_VERSION' ) ) {
-        define( 'SAC_VERSION', '2.5.1' );
+        define( 'SAC_VERSION', '2.5.2' );
     }
     if ( ! class_exists( 'POD_Option_Forms', false ) ) {
         require_once plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms.php';

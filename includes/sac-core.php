@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.1' );
+define( 'SAC_VERSION',           '2.5.2' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -193,7 +193,7 @@ function sac_register_routes() {
     ) );
 
     register_rest_route( 'sac/v1', '/bulk-delete', array(
-        'methods'             => 'DELETE',
+        'methods'             => array( 'DELETE', 'POST' ),
         'callback'            => 'sac_bulk_delete',
         'permission_callback' => 'sac_verify',
     ) );
@@ -815,6 +815,14 @@ function sac_bulk_products( $request ) {
                 if ( count( $ids ) > 1 ) {
                     $product->set_gallery_image_ids( array_slice( $ids, 1 ) );
                 }
+            } elseif ( ! empty( $data['image_urls'] ) && is_array( $data['image_urls'] ) ) {
+                $ids = sac_resolve_virtual_r2_attachment_ids( $data['image_urls'], isset( $data['name'] ) ? $data['name'] : '' );
+                if ( ! empty( $ids ) ) {
+                    $product->set_image_id( $ids[0] );
+                    if ( count( $ids ) > 1 ) {
+                        $product->set_gallery_image_ids( array_slice( $ids, 1 ) );
+                    }
+                }
             }
 
             if ( ! empty( $data['category_ids'] ) && is_array( $data['category_ids'] ) ) {
@@ -984,10 +992,17 @@ function sac_bulk_delete( $request ) {
     $params  = $request->get_json_params();
     $results = array();
 
+    $product_ids = array();
+    if ( ! empty( $params['product_ids'] ) && is_array( $params['product_ids'] ) ) {
+        $product_ids = $params['product_ids'];
+    } elseif ( ! empty( $params['ids'] ) && is_array( $params['ids'] ) ) {
+        $product_ids = $params['ids'];
+    }
+
     // Delete products
-    if ( ! empty( $params['product_ids'] ) && function_exists( 'wc_get_product' ) ) {
+    if ( ! empty( $product_ids ) && function_exists( 'wc_get_product' ) ) {
         $results['products'] = array();
-        foreach ( $params['product_ids'] as $id ) {
+        foreach ( $product_ids as $id ) {
             $product = wc_get_product( $id );
             if ( $product ) {
                 $image_id = $product->get_image_id();
@@ -1851,7 +1866,18 @@ function sac_create_variable_product( $request ) {
     $description = isset( $params['description'] ) ? wp_kses_post( $params['description'] ) : '';
     $short_description = isset( $params['short_description'] ) ? wp_kses_post( $params['short_description'] ) : '';
     $status = isset( $params['status'] ) ? sanitize_text_field( $params['status'] ) : 'draft';
-    $image_ids = isset( $params['image_ids'] ) ? array_map( 'intval', $params['image_ids'] ) : array();
+    $image_ids = isset( $params['image_ids'] ) ? array_values( array_filter( array_map( 'intval', (array) $params['image_ids'] ) ) ) : array();
+    if ( empty( $image_ids ) ) {
+        $raw_urls = array();
+        if ( ! empty( $params['image_urls'] ) && is_array( $params['image_urls'] ) ) {
+            $raw_urls = $params['image_urls'];
+        } elseif ( ! empty( $params['mockupUrls'] ) && is_array( $params['mockupUrls'] ) ) {
+            $raw_urls = $params['mockupUrls'];
+        }
+        if ( ! empty( $raw_urls ) ) {
+            $image_ids = sac_resolve_virtual_r2_attachment_ids( $raw_urls, $name );
+        }
+    }
     $category_ids = isset( $params['category_ids'] ) ? array_map( 'intval', $params['category_ids'] ) : array();
     $sizes = isset( $params['sizes'] ) ? $params['sizes'] : array(); // [{ name: 'S', price: '19.99' }, ...]
     $colors = isset( $params['colors'] ) ? $params['colors'] : array(); // ['Black', 'White', ...]
@@ -2122,10 +2148,11 @@ function sac_assign_custom_fields( $request ) {
             );
             
             // Load existing data
+            $replace_all = ! empty( $params['replace_all'] );
             $existing = get_post_meta( $product_id, '_pod_custom_fields', true );
             $presets_list = array();
             
-            if ( ! empty( $existing ) && is_array( $existing ) ) {
+            if ( ! $replace_all && ! empty( $existing ) && is_array( $existing ) ) {
                 if ( ! empty( $existing['presets'] ) && is_array( $existing['presets'] ) ) {
                     // Already multi-preset format
                     $presets_list = $existing['presets'];
@@ -2750,3 +2777,102 @@ function sac_convert_products_to_simple( $request ) {
         'results'            => $results,
     ) );
 }
+
+/**
+ * Virtual R2 Attachment support (v2.5.2+):
+ * Creates lightweight attachment post records that point directly to Cloudflare R2 URLs
+ * without downloading or storing image binaries in wp-content/uploads/.
+ */
+function sac_create_virtual_r2_attachment( $image_url, $title = '', $alt = '' ) {
+    $clean_url = esc_url_raw( trim( (string) $image_url ) );
+    if ( empty( $clean_url ) ) {
+        return 0;
+    }
+
+    // Reuse existing virtual attachment for this exact R2 URL if present
+    $existing = get_posts( array(
+        'post_type'      => 'attachment',
+        'post_status'    => 'inherit',
+        'posts_per_page' => 1,
+        'fields'         => 'ids',
+        'meta_key'       => '_pod_external_r2_url',
+        'meta_value'     => $clean_url,
+    ) );
+    if ( ! empty( $existing[0] ) ) {
+        return intval( $existing[0] );
+    }
+
+    $path_part = wp_parse_url( $clean_url, PHP_URL_PATH );
+    $filename  = $path_part ? basename( $path_part ) : 'r2-product-image.png';
+    $ext       = strtolower( pathinfo( $filename, PATHINFO_EXTENSION ) );
+    $mime_type = ( $ext === 'jpg' || $ext === 'jpeg' ) ? 'image/jpeg' : ( $ext === 'webp' ? 'image/webp' : 'image/png' );
+
+    $att_title = ! empty( $title ) ? sanitize_text_field( $title ) : sanitize_text_field( pathinfo( $filename, PATHINFO_FILENAME ) );
+    $att_id    = wp_insert_post( array(
+        'post_title'     => $att_title,
+        'post_content'   => '',
+        'post_status'    => 'inherit',
+        'post_type'      => 'attachment',
+        'post_mime_type' => $mime_type,
+        'guid'           => $clean_url,
+    ) );
+
+    if ( is_wp_error( $att_id ) || ! $att_id ) {
+        return 0;
+    }
+
+    update_post_meta( $att_id, '_pod_external_r2_url', $clean_url );
+    update_post_meta( $att_id, '_wp_attached_file', 'r2-external/' . sanitize_file_name( $filename ) );
+    update_post_meta( $att_id, '_wp_attachment_metadata', array(
+        'width'  => 1200,
+        'height' => 1200,
+        'file'   => 'r2-external/' . sanitize_file_name( $filename ),
+        'sizes'  => array(),
+    ) );
+    if ( ! empty( $alt ) ) {
+        update_post_meta( $att_id, '_wp_attachment_image_alt', sanitize_text_field( $alt ) );
+    } elseif ( ! empty( $att_title ) ) {
+        update_post_meta( $att_id, '_wp_attachment_image_alt', $att_title );
+    }
+
+    return intval( $att_id );
+}
+
+function sac_resolve_virtual_r2_attachment_ids( $urls, $product_title = '' ) {
+    if ( ! is_array( $urls ) ) {
+        return array();
+    }
+    $ids = array();
+    foreach ( $urls as $idx => $u ) {
+        $url_str = is_array( $u ) ? ( isset( $u['src'] ) ? $u['src'] : ( isset( $u['url'] ) ? $u['url'] : '' ) ) : (string) $u;
+        $att_id  = sac_create_virtual_r2_attachment( $url_str, $product_title ? ( $product_title . ' #' . ( $idx + 1 ) ) : '', $product_title );
+        if ( $att_id > 0 ) {
+            $ids[] = $att_id;
+        }
+    }
+    return $ids;
+}
+
+add_filter( 'wp_get_attachment_url', function( $url, $post_id ) {
+    $r2_url = get_post_meta( $post_id, '_pod_external_r2_url', true );
+    if ( ! empty( $r2_url ) ) {
+        return $r2_url;
+    }
+    return $url;
+}, 10, 2 );
+
+add_filter( 'wp_get_attachment_image_src', function( $image, $attachment_id, $size, $icon ) {
+    $r2_url = get_post_meta( $attachment_id, '_pod_external_r2_url', true );
+    if ( ! empty( $r2_url ) ) {
+        return array( $r2_url, 1200, 1200, false );
+    }
+    return $image;
+}, 10, 4 );
+
+add_filter( 'wp_calculate_image_srcset', function( $sources, $size_array, $image_src, $image_meta, $attachment_id ) {
+    $r2_url = get_post_meta( $attachment_id, '_pod_external_r2_url', true );
+    if ( ! empty( $r2_url ) ) {
+        return false;
+    }
+    return $sources;
+}, 10, 5 );
