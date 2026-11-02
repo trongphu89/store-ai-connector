@@ -371,6 +371,9 @@ class POD_Option_Forms_Admin {
         (function() {
             var state = <?php echo wp_json_encode( $form ); ?>;
             var svgIcons = <?php echo wp_json_encode( $svg_icons ); ?>;
+            var adminAjaxUrl = <?php echo wp_json_encode( admin_url( 'admin-ajax.php' ) ); ?>;
+            var adminUploadNonce = <?php echo wp_json_encode( wp_create_nonce( 'pod_of_upload_nonce' ) ); ?>;
+            var starterSgTabs = <?php echo wp_json_encode( POD_Option_Forms::get_default_multitab_size_guide_tabs( 'apparel' ) ); ?>;
             state.fields = Array.isArray(state.fields) ? state.fields : [];
 
             var mount = document.getElementById('pod-fields-mount');
@@ -438,15 +441,40 @@ class POD_Option_Forms_Admin {
                     html += '<input type="text" style="width:100px;" placeholder="value" data-fcond="value" data-fidx="' + fIdx + '" value="' + esc(cond.value) + '"/>';
                     html += '</div>';
 
-                    // Helper Popup config
-                    html += '<div style="margin-bottom:10px;padding:8px 10px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">';
-                    html += '<label><input type="checkbox" data-fpop="enabled" data-fidx="' + fIdx + '"' + (pop.enabled ? ' checked' : '') + '/> <strong>Enable Helper Modal Popup</strong> (Size Guide / Comparing Methods)</label>';
+                    // Helper Popup config (supports Multi-Tab + Size Chart Image Upload)
+                    html += '<div style="margin-bottom:10px;padding:10px 12px;background:#fff;border:1px solid #e2e8f0;border-radius:6px;font-size:12px;">';
+                    html += '<label><input type="checkbox" data-fpop="enabled" data-fidx="' + fIdx + '"' + (pop.enabled ? ' checked' : '') + '/> <strong>Enable Helper Modal Popup</strong> (Multi-Tab Size Guide / Image Size Chart)</label>';
                     if (pop.enabled) {
-                        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">';
+                        var popTabs = Array.isArray(pop.tabs) ? pop.tabs : [];
+                        html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px;">';
                         html += '<input type="text" placeholder="Button Label (e.g. Size Guide)" data-fpop="label" data-fidx="' + fIdx + '" value="' + esc(pop.label) + '"/>';
                         html += '<select data-fpop="position" data-fidx="' + fIdx + '"><option value="inline_label"' + (pop.position !== 'below_field' ? ' selected' : '') + '>Inline next to Field Label</option><option value="below_field"' + (pop.position === 'below_field' ? ' selected' : '') + '>Button Below Field</option></select>';
+                        html += '<input type="text" placeholder="Header Brand Title (optional)" data-fpop="header_title" data-fidx="' + fIdx + '" value="' + esc(pop.header_title || '') + '"/>';
                         html += '</div>';
-                        html += '<textarea rows="3" style="width:100%;margin-top:6px;font-family:monospace;font-size:11.5px;" placeholder="Popup HTML content (table or text)" data-fpop="content" data-fidx="' + fIdx + '">' + esc(pop.content) + '</textarea>';
+                        html += '<input type="text" style="width:100%;margin-top:6px;" placeholder="Disclaimer note (e.g. For apparel products, there might be ±1.5in deviation...)" data-fpop="disclaimer" data-fidx="' + fIdx + '" value="' + esc(pop.disclaimer || '') + '"/>';
+
+                        html += '<div style="margin-top:8px;padding:8px;background:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;">';
+                        html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">';
+                        html += '<strong>Multi-Tab Size Charts (' + popTabs.length + ' tabs)</strong>';
+                        html += '<div style="display:flex;gap:6px;">';
+                        html += '<button type="button" class="button button-small" data-sg-seed="' + fIdx + '">Load 7 Apparel Tabs</button>';
+                        html += '<button type="button" class="button button-small" data-sg-add="' + fIdx + '">+ Add Tab</button>';
+                        html += '</div></div>';
+
+                        popTabs.forEach(function(tb, tIdx) {
+                            html += '<div style="display:grid;grid-template-columns:130px 1fr 150px auto auto;gap:6px;align-items:center;margin-bottom:6px;background:#fff;padding:6px;border:1px solid #e2e8f0;border-radius:4px;">';
+                            html += '<input type="text" placeholder="TAB LABEL" data-sgt="label" data-fidx="' + fIdx + '" data-tidx="' + tIdx + '" value="' + esc(tb.label) + '"/>';
+                            html += '<input type="text" placeholder="Size Chart Image URL (or leave blank for Diagram + Table)" data-sgt="image_url" data-fidx="' + fIdx + '" data-tidx="' + tIdx + '" value="' + esc(tb.image_url || '') + '"/>';
+                            html += '<select data-sgt="image_mode" data-fidx="' + fIdx + '" data-tidx="' + tIdx + '"><option value="full_chart"' + ((tb.image_mode || 'full_chart') === 'full_chart' ? ' selected' : '') + '>Full Size Chart Image</option><option value="side_diagram"' + (tb.image_mode === 'side_diagram' ? ' selected' : '') + '>Side Diagram + Table</option></select>';
+                            html += '<label class="button button-small" style="margin:0;">📤 Upload<input type="file" accept=".jpg,.jpeg,.png,.webp" style="display:none;" data-sg-upload="1" data-fidx="' + fIdx + '" data-tidx="' + tIdx + '"/></label>';
+                            html += '<button type="button" class="button button-small" style="color:#dc2626;" data-sg-del="' + tIdx + '" data-fidx="' + fIdx + '">&times;</button>';
+                            html += '</div>';
+                        });
+                        html += '</div>';
+
+                        if (!popTabs.length) {
+                            html += '<textarea rows="3" style="width:100%;margin-top:6px;font-family:monospace;font-size:11.5px;" placeholder="Fallback single-popup HTML content" data-fpop="content" data-fidx="' + fIdx + '">' + esc(pop.content) + '</textarea>';
+                        }
                     }
                     html += '</div>';
 
@@ -501,6 +529,15 @@ class POD_Option_Forms_Admin {
                 } else if (t.hasAttribute('data-fpop') && t.type !== 'checkbox') {
                     state.fields[fIdx].helper_popup = state.fields[fIdx].helper_popup || { enabled: true, label: 'Size Guide', position: 'inline_label', content: '' };
                     state.fields[fIdx].helper_popup[t.getAttribute('data-fpop')] = t.value;
+                } else if (t.hasAttribute('data-sgt')) {
+                    var tIdx = parseInt(t.getAttribute('data-tidx'), 10);
+                    if (state.fields[fIdx].helper_popup && Array.isArray(state.fields[fIdx].helper_popup.tabs) && state.fields[fIdx].helper_popup.tabs[tIdx]) {
+                        var sgKey = t.getAttribute('data-sgt');
+                        state.fields[fIdx].helper_popup.tabs[tIdx][sgKey] = t.value;
+                        if (sgKey === 'label') {
+                            state.fields[fIdx].helper_popup.tabs[tIdx].table_title = t.value;
+                        }
+                    }
                 } else if (t.hasAttribute('data-ok')) {
                     var oIdx = parseInt(t.getAttribute('data-oidx'), 10);
                     var key = t.getAttribute('data-ok');
@@ -518,6 +555,24 @@ class POD_Option_Forms_Admin {
                     state.fields[fIdx].helper_popup = state.fields[fIdx].helper_popup || { label: 'Size Guide', position: 'inline_label', content: '' };
                     state.fields[fIdx].helper_popup.enabled = t.checked;
                     renderFields();
+                } else if (t.hasAttribute('data-sg-upload')) {
+                    if (!t.files || !t.files[0]) return;
+                    var upTIdx = parseInt(t.getAttribute('data-tidx'), 10);
+                    var fd = new FormData();
+                    fd.append('action', 'pod_of_upload_file');
+                    fd.append('nonce', adminUploadNonce);
+                    fd.append('file', t.files[0]);
+                    fetch(adminAjaxUrl, { method: 'POST', body: fd, credentials: 'same-origin' })
+                        .then(function(r) { return r.json(); })
+                        .then(function(res) {
+                            if (res && res.success && res.data && res.data.url) {
+                                state.fields[fIdx].helper_popup.tabs[upTIdx].image_url = res.data.url;
+                                state.fields[fIdx].helper_popup.tabs[upTIdx].image_mode = 'full_chart';
+                                renderFields();
+                            } else {
+                                alert((res && res.data && res.data.message) || 'Upload failed');
+                            }
+                        });
                 } else if (t.tagName === 'SELECT') {
                     t.dispatchEvent(new Event('input', { bubbles: true }));
                 }
@@ -547,6 +602,34 @@ class POD_Option_Forms_Admin {
                     var oi2 = parseInt(btn.getAttribute('data-odel'), 10);
                     state.fields[fi2].options.splice(oi2, 1);
                     renderFields();
+                } else if (btn.hasAttribute('data-sg-seed')) {
+                    var fiSg = parseInt(btn.getAttribute('data-sg-seed'), 10);
+                    state.fields[fiSg].helper_popup = state.fields[fiSg].helper_popup || { enabled: true, label: 'Size Guide', position: 'inline_label' };
+                    state.fields[fiSg].helper_popup.tabs = JSON.parse(JSON.stringify(starterSgTabs));
+                    renderFields();
+                } else if (btn.hasAttribute('data-sg-add')) {
+                    var fiAdd = parseInt(btn.getAttribute('data-sg-add'), 10);
+                    state.fields[fiAdd].helper_popup = state.fields[fiAdd].helper_popup || { enabled: true, label: 'Size Guide', position: 'inline_label' };
+                    state.fields[fiAdd].helper_popup.tabs = Array.isArray(state.fields[fiAdd].helper_popup.tabs) ? state.fields[fiAdd].helper_popup.tabs : [];
+                    var nextTabNum = state.fields[fiAdd].helper_popup.tabs.length + 1;
+                    state.fields[fiAdd].helper_popup.tabs.push({
+                        id: 'tab-' + nextTabNum,
+                        label: 'CUSTOM TAB ' + nextTabNum,
+                        table_title: 'CUSTOM TAB ' + nextTabNum,
+                        image_url: '',
+                        image_mode: 'full_chart',
+                        diagram_type: 'tshirt',
+                        columns: ['SIZE', 'LENGTH(in)', 'WIDTH(in)'],
+                        rows: [['S', '28', '18'], ['M', '29', '20'], ['L', '30', '22'], ['XL', '31', '24']]
+                    });
+                    renderFields();
+                } else if (btn.hasAttribute('data-sg-del')) {
+                    var fiDel = parseInt(btn.getAttribute('data-fidx'), 10);
+                    var tiDel = parseInt(btn.getAttribute('data-sg-del'), 10);
+                    if (state.fields[fiDel].helper_popup && Array.isArray(state.fields[fiDel].helper_popup.tabs)) {
+                        state.fields[fiDel].helper_popup.tabs.splice(tiDel, 1);
+                        renderFields();
+                    }
                 }
             });
 

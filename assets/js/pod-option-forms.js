@@ -237,10 +237,107 @@
             recalculatePrice();
         }
 
+        function activateSizeGuideTab(modal, tabId) {
+            if (!modal || !tabId) return;
+            var tabs = modal.querySelectorAll('.pod-sg-tab-btn');
+            var panels = modal.querySelectorAll('.pod-sg-tab-panel, [data-sg-panel]');
+            for (var i = 0; i < tabs.length; i++) {
+                var isMatch = tabs[i].getAttribute('data-sg-tab') === tabId;
+                if (isMatch) {
+                    tabs[i].classList.add('is-active');
+                    tabs[i].setAttribute('aria-selected', 'true');
+                } else {
+                    tabs[i].classList.remove('is-active');
+                    tabs[i].setAttribute('aria-selected', 'false');
+                }
+            }
+            for (var j = 0; j < panels.length; j++) {
+                var panelMatch = panels[j].getAttribute('data-sg-panel') === tabId;
+                if (panelMatch) {
+                    panels[j].classList.add('is-active');
+                    panels[j].style.display = '';
+                } else {
+                    panels[j].classList.remove('is-active');
+                    panels[j].style.display = 'none';
+                }
+            }
+        }
+
+        function autoMatchSizeGuideTab(modal) {
+            if (!modal) return;
+            var tabs = modal.querySelectorAll('.pod-sg-tab-btn');
+            if (!tabs || tabs.length === 0) return;
+
+            var fitField = container.querySelector(
+                '.pod-of-field[data-semantic-role="fit"] .pod-of-hidden-val, .pod-of-field[data-field-id="fit_type"] .pod-of-hidden-val, .pod-of-field[data-field-id="gender"] .pod-of-hidden-val'
+            );
+            var styleField = container.querySelector(
+                '.pod-of-field[data-semantic-role="style"] .pod-of-hidden-val, .pod-of-field[data-field-id="style"] .pod-of-hidden-val'
+            );
+            var fitVal = fitField && fitField.value ? String(fitField.value).toLowerCase() : '';
+            var styleVal = styleField && styleField.value ? String(styleField.value).toLowerCase() : '';
+
+            var candidates = [];
+            if (fitVal === 'youth' || fitVal === 'kids' || fitVal === 'preschool') {
+                candidates.push(fitVal);
+            }
+            if (styleVal) {
+                candidates.push(styleVal);
+            }
+            var pagePath = (window.location && window.location.pathname ? window.location.pathname : '').toLowerCase();
+            var keywords = ['hockey', 'basketball', 'football', 'baseball', 'sweatshirt', 'hoodie', 'long-sleeve', 'v-neck', 'mug', 'tumbler'];
+            for (var k = 0; k < keywords.length; k++) {
+                if (pagePath.indexOf(keywords[k]) !== -1) {
+                    candidates.push(keywords[k]);
+                }
+            }
+
+            for (var c = 0; c < candidates.length; c++) {
+                var token = candidates[c];
+                // Pass 1: exact match across all tabs first (prevents "tshirt" matching inside "sweatshirt")
+                for (var t = 0; t < tabs.length; t++) {
+                    var rawExact = (tabs[t].getAttribute('data-match-styles') || '').toLowerCase();
+                    if (!rawExact) continue;
+                    var exactParts = rawExact.split(',');
+                    for (var ep = 0; ep < exactParts.length; ep++) {
+                        if (exactParts[ep].trim() === token) {
+                            activateSizeGuideTab(modal, tabs[t].getAttribute('data-sg-tab'));
+                            return;
+                        }
+                    }
+                }
+                // Pass 2: hyphen/space segment match (e.g. "pullover-hoodie" matches "hoodie", but "sweatshirt" never matches "tshirt")
+                var tokenSegs = token.split(/[-_\s]+/);
+                for (var t2 = 0; t2 < tabs.length; t2++) {
+                    var rawSeg = (tabs[t2].getAttribute('data-match-styles') || '').toLowerCase();
+                    if (!rawSeg) continue;
+                    var segParts = rawSeg.split(',');
+                    for (var sp2 = 0; sp2 < segParts.length; sp2++) {
+                        var pt = segParts[sp2].trim();
+                        if (pt && tokenSegs.indexOf(pt) !== -1) {
+                            activateSizeGuideTab(modal, tabs[t2].getAttribute('data-sg-tab'));
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+
         // Delegated click handler inside container
         container.addEventListener('click', function (e) {
             var target = e.target;
             if (!target || !target.closest) return;
+
+            var sgTabBtn = target.closest('.pod-sg-tab-btn');
+            if (sgTabBtn && container.contains(sgTabBtn)) {
+                e.preventDefault();
+                var parentModal = sgTabBtn.closest('.pod-of-modal-backdrop');
+                var sgTabId = sgTabBtn.getAttribute('data-sg-tab');
+                if (parentModal && sgTabId) {
+                    activateSizeGuideTab(parentModal, sgTabId);
+                }
+                return;
+            }
 
             var choiceBtn = target.closest('.pod-of-choice');
             if (choiceBtn && container.contains(choiceBtn)) {
@@ -255,6 +352,7 @@
                 var targetId = popupTrigger.getAttribute('data-popup-target');
                 var modal = targetId ? document.getElementById(targetId) : null;
                 if (modal) {
+                    autoMatchSizeGuideTab(modal);
                     modal.style.display = 'flex';
                 }
                 return;

@@ -148,11 +148,13 @@ class POD_Option_Forms {
                         'show_check'    => false,
                         'semantic_role' => 'size',
                         'helper_popup'  => array(
-                            'enabled'  => true,
-                            'label'    => 'Size Guide',
-                            'position' => 'inline_label',
-                            'icon'     => 'ruler',
-                            'content'  => $size_guide_apparel_html,
+                            'enabled'    => true,
+                            'label'      => 'Size Guide',
+                            'position'   => 'inline_label',
+                            'icon'       => 'ruler',
+                            'disclaimer' => 'For apparel products, there might be ±1.5in (±4cm) deviation in length for manual measurement and production processes. The sizing chart is for reference only.',
+                            'tabs'       => self::get_default_multitab_size_guide_tabs( 'apparel' ),
+                            'content'    => $size_guide_apparel_html,
                         ),
                         'options'       => array(
                             array( 'id' => 's', 'label' => 'S', 'price_mode' => 'add_fixed', 'price' => 0 ),
@@ -237,11 +239,13 @@ class POD_Option_Forms {
                         'show_check'    => false,
                         'semantic_role' => 'size',
                         'helper_popup'  => array(
-                            'enabled'  => true,
-                            'label'    => 'Size Guide',
-                            'position' => 'inline_label',
-                            'icon'     => 'ruler',
-                            'content'  => $size_guide_apparel_html,
+                            'enabled'    => true,
+                            'label'      => 'Size Guide',
+                            'position'   => 'inline_label',
+                            'icon'       => 'ruler',
+                            'disclaimer' => 'For apparel products, there might be ±1.5in (±4cm) deviation in length for manual measurement and production processes. The sizing chart is for reference only.',
+                            'tabs'       => self::get_default_multitab_size_guide_tabs( 'apparel' ),
+                            'content'    => $size_guide_apparel_html,
                         ),
                         'options'       => array(
                             array( 'id' => 's', 'label' => 'S', 'price_mode' => 'add_fixed', 'price' => 0 ),
@@ -313,11 +317,13 @@ class POD_Option_Forms {
                         'required'      => true,
                         'semantic_role' => 'size',
                         'helper_popup'  => array(
-                            'enabled'  => true,
-                            'label'    => 'Size guide',
-                            'position' => 'inline_label',
-                            'icon'     => 'ruler',
-                            'content'  => $jersey_guide_html,
+                            'enabled'    => true,
+                            'label'      => 'Size guide',
+                            'position'   => 'inline_label',
+                            'icon'       => 'ruler',
+                            'disclaimer' => 'For custom sports jerseys, measurements are taken flat in inches. Order one size up if wearing pads or hoodies underneath.',
+                            'tabs'       => self::get_default_multitab_size_guide_tabs( 'jersey' ),
+                            'content'    => $jersey_guide_html,
                         ),
                         'options'       => array(
                             array( 'id' => 's', 'label' => 'S', 'price_mode' => 'none', 'price' => 0 ),
@@ -564,14 +570,51 @@ class POD_Option_Forms {
      * Seed starter presets once if registry is empty
      */
     public static function maybe_seed_default_forms() {
-        if ( get_option( self::SEEDED_FLAG_KEY ) ) {
+        if ( ! get_option( self::SEEDED_FLAG_KEY ) ) {
+            $existing = get_option( self::OPTION_KEY, array() );
+            if ( empty( $existing ) || ! is_array( $existing ) ) {
+                update_option( self::OPTION_KEY, self::get_starter_presets(), false );
+            }
+            update_option( self::SEEDED_FLAG_KEY, '1', false );
+            update_option( 'pod_option_forms_multitab_v258', '1', false );
             return;
         }
-        $existing = get_option( self::OPTION_KEY, array() );
-        if ( empty( $existing ) || ! is_array( $existing ) ) {
-            update_option( self::OPTION_KEY, self::get_starter_presets(), false );
+
+        // One-time safe upgrade for stores seeded before v2.5.8: attach Multi-Tab Size Guide tabs to default presets if missing
+        if ( ! get_option( 'pod_option_forms_multitab_v258' ) ) {
+            $forms   = get_option( self::OPTION_KEY, array() );
+            $changed = false;
+            if ( is_array( $forms ) ) {
+                foreach ( $forms as &$form ) {
+                    $fid = $form['id'] ?? '';
+                    if ( ! in_array( $fid, array( 'preset_apparel_6_styles', 'preset_sweatshirt_hoodie', 'preset_custom_jersey' ), true ) ) {
+                        continue;
+                    }
+                    if ( empty( $form['fields'] ) || ! is_array( $form['fields'] ) ) {
+                        continue;
+                    }
+                    $preset_kind = ( $fid === 'preset_custom_jersey' ) ? 'jersey' : 'apparel';
+                    foreach ( $form['fields'] as &$field ) {
+                        $f_id = $field['id'] ?? '';
+                        if ( ! in_array( $f_id, array( 'size', 'jersey_size' ), true ) ) {
+                            continue;
+                        }
+                        if ( ! empty( $field['helper_popup']['enabled'] ) && empty( $field['helper_popup']['tabs'] ) ) {
+                            $field['helper_popup']['tabs']       = self::get_default_multitab_size_guide_tabs( $preset_kind );
+                            $field['helper_popup']['disclaimer'] = $field['helper_popup']['disclaimer']
+                                ?? 'For apparel products, there might be ±1.5in (±4cm) deviation in length for manual measurement and production processes. The sizing chart is for reference only.';
+                            $changed = true;
+                        }
+                    }
+                    unset( $field );
+                }
+                unset( $form );
+                if ( $changed ) {
+                    update_option( self::OPTION_KEY, $forms, false );
+                }
+            }
+            update_option( 'pod_option_forms_multitab_v258', '1', false );
         }
-        update_option( self::SEEDED_FLAG_KEY, '1', false );
     }
 
     /**
@@ -1313,18 +1356,454 @@ class POD_Option_Forms {
             <input type="hidden" name="pod_of_payload_json" class="pod-of-payload-json" value="" />
             <?php wp_nonce_field( 'pod_of_cart_action', 'pod_of_nonce' ); ?>
 
-            <?php foreach ( $popups_to_out as $pid => $p_cfg ) : ?>
+            <?php foreach ( $popups_to_out as $pid => $p_cfg ) :
+                $has_tabs = ! empty( $p_cfg['tabs'] ) && is_array( $p_cfg['tabs'] );
+            ?>
                 <div id="<?php echo esc_attr( $pid ); ?>" class="pod-of-modal-backdrop" style="display:none;" role="dialog" aria-modal="true">
-                    <div class="pod-of-modal-dialog">
+                    <div class="pod-of-modal-dialog<?php echo $has_tabs ? ' is-multitab-guide' : ''; ?>">
                         <button type="button" class="pod-of-modal-close" aria-label="Close">&times;</button>
                         <div class="pod-of-modal-body">
-                            <?php echo wp_kses_post( $p_cfg['content'] ?? '' ); ?>
+                            <?php echo self::render_popup_modal_inner( $p_cfg ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
                         </div>
                     </div>
                 </div>
             <?php endforeach; ?>
         </div>
         <?php
+    }
+
+    /**
+     * Built-in realistic multi-tab Size Guide presets (FashionBoomy-style layout with auto-style matching)
+     */
+    public static function get_default_multitab_size_guide_tabs( string $preset_kind = 'apparel' ): array {
+        if ( $preset_kind === 'jersey' ) {
+            return array(
+                array(
+                    'id'           => 'baseball-jersey',
+                    'label'        => 'BASEBALL JERSEY',
+                    'match_styles' => array( 'baseball', 'mens', 'womens' ),
+                    'image_url'    => '',
+                    'image_mode'   => 'side_diagram',
+                    'diagram_type' => 'jersey',
+                    'table_title'  => 'BASEBALL JERSEY',
+                    'columns'      => array( 'SIZE', 'CHEST(in)', 'LENGTH(in)' ),
+                    'rows'         => array(
+                        array( 'S', '41.7', '29.9' ),
+                        array( 'M', '44.1', '31.1' ),
+                        array( 'L', '46.5', '32.3' ),
+                        array( 'XL', '48.8', '33.5' ),
+                        array( '2XL', '52.0', '34.6' ),
+                        array( '3XL', '55.1', '35.8' ),
+                        array( '4XL', '58.3', '37.0' ),
+                    ),
+                ),
+                array(
+                    'id'           => 'hockey-sweater',
+                    'label'        => 'HOCKEY SWEATER',
+                    'match_styles' => array( 'hockey', 'sweater' ),
+                    'image_url'    => '',
+                    'image_mode'   => 'side_diagram',
+                    'diagram_type' => 'sweatshirt',
+                    'table_title'  => 'HOCKEY SWEATER',
+                    'columns'      => array( 'SIZE', 'CHEST(in)', 'LENGTH(in)' ),
+                    'rows'         => array(
+                        array( 'S', '44', '30' ),
+                        array( 'M', '47', '31' ),
+                        array( 'L', '50', '32' ),
+                        array( 'XL', '53', '33' ),
+                        array( '2XL', '56', '34' ),
+                        array( '3XL', '60', '35' ),
+                        array( '4XL', '64', '36' ),
+                    ),
+                ),
+                array(
+                    'id'           => 'football-basketball',
+                    'label'        => 'FOOTBALL / BASKETBALL',
+                    'match_styles' => array( 'football', 'basketball' ),
+                    'image_url'    => '',
+                    'image_mode'   => 'side_diagram',
+                    'diagram_type' => 'tanktop',
+                    'table_title'  => 'ATHLETIC JERSEY',
+                    'columns'      => array( 'SIZE', 'CHEST(in)', 'LENGTH(in)' ),
+                    'rows'         => array(
+                        array( 'S', '40.2', '28.5' ),
+                        array( 'M', '43.3', '29.7' ),
+                        array( 'L', '46.5', '30.9' ),
+                        array( 'XL', '49.6', '32.1' ),
+                        array( '2XL', '52.8', '33.3' ),
+                        array( '3XL', '55.9', '34.5' ),
+                    ),
+                ),
+                array(
+                    'id'           => 'youth-jersey',
+                    'label'        => 'KIDS / YOUTH',
+                    'match_styles' => array( 'kids', 'preschool', 'youth' ),
+                    'image_url'    => '',
+                    'image_mode'   => 'side_diagram',
+                    'diagram_type' => 'youthshirt',
+                    'table_title'  => 'YOUTH JERSEY',
+                    'columns'      => array( 'SIZE', 'CHEST(in)', 'LENGTH(in)' ),
+                    'rows'         => array(
+                        array( 'XS (4-5Y)', '30.0', '20.5' ),
+                        array( 'S (6-7Y)', '32.0', '22.0' ),
+                        array( 'M (8-9Y)', '34.5', '23.5' ),
+                        array( 'L (10-12Y)', '37.0', '25.0' ),
+                        array( 'XL (14-16Y)', '39.5', '26.5' ),
+                    ),
+                ),
+            );
+        }
+
+        return array(
+            array(
+                'id'           => 'tshirt',
+                'label'        => 'TSHIRT',
+                'match_styles' => array( 'unisex-t-shirt', 't-shirt', 'tee' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'tshirt',
+                'table_title'  => 'TSHIRT',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'S', '28', '18' ),
+                    array( 'M', '29', '20' ),
+                    array( 'L', '30', '22' ),
+                    array( 'XL', '31', '24' ),
+                    array( '2XL', '32', '26' ),
+                    array( '3XL', '33', '28' ),
+                    array( '4XL', '34', '30' ),
+                    array( '5XL', '35', '32' ),
+                ),
+            ),
+            array(
+                'id'           => 'sweatshirt',
+                'label'        => 'SWEATSHIRT',
+                'match_styles' => array( 'unisex-sweatshirt', 'sweatshirt', 'crewneck' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'sweatshirt',
+                'table_title'  => 'SWEATSHIRT',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'S', '27', '20' ),
+                    array( 'M', '28', '22' ),
+                    array( 'L', '29', '24' ),
+                    array( 'XL', '30', '26' ),
+                    array( '2XL', '31', '28' ),
+                    array( '3XL', '32', '30' ),
+                    array( '4XL', '34', '32' ),
+                    array( '5XL', '35', '34' ),
+                ),
+            ),
+            array(
+                'id'           => 'hoodie',
+                'label'        => 'HOODIE',
+                'match_styles' => array( 'unisex-hoodie', 'hoodie', 'pullover' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'hoodie',
+                'table_title'  => 'HOODIE',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'S', '27', '20' ),
+                    array( 'M', '28', '22' ),
+                    array( 'L', '29', '24' ),
+                    array( 'XL', '30', '26' ),
+                    array( '2XL', '31', '28' ),
+                    array( '3XL', '32', '30' ),
+                    array( '4XL', '33', '32' ),
+                    array( '5XL', '34', '34' ),
+                ),
+            ),
+            array(
+                'id'           => 'youthshirt',
+                'label'        => 'YOUTHSHIRT',
+                'match_styles' => array( 'youth', 'kids' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'youthshirt',
+                'table_title'  => 'YOUTHSHIRT',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'XS', '20.5', '16' ),
+                    array( 'S', '22.0', '17' ),
+                    array( 'M', '23.5', '18' ),
+                    array( 'L', '25.0', '19' ),
+                    array( 'XL', '26.5', '20' ),
+                ),
+            ),
+            array(
+                'id'           => 'longsleeve',
+                'label'        => 'LONG SLEEVE',
+                'match_styles' => array( 'unisex-long-sleeve', 'long-sleeve' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'longsleeve',
+                'table_title'  => 'LONG SLEEVE',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'S', '28', '18' ),
+                    array( 'M', '29', '20' ),
+                    array( 'L', '30', '22' ),
+                    array( 'XL', '31', '24' ),
+                    array( '2XL', '32', '26' ),
+                    array( '3XL', '33', '28' ),
+                ),
+            ),
+            array(
+                'id'           => 'vneck',
+                'label'        => 'V-NECK',
+                'match_styles' => array( 'unisex-v-neck', 'v-neck', 'unisex-tank-top' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'vneck',
+                'table_title'  => 'V-NECK TEE',
+                'columns'      => array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' ),
+                'rows'         => array(
+                    array( 'S', '28', '18' ),
+                    array( 'M', '29', '20' ),
+                    array( 'L', '30', '22' ),
+                    array( 'XL', '31', '24' ),
+                    array( '2XL', '32', '26' ),
+                    array( '3XL', '33', '28' ),
+                ),
+            ),
+            array(
+                'id'           => 'tumbler-mug',
+                'label'        => 'TUMBLER-MUG',
+                'match_styles' => array( '11oz', '15oz', '20oz', '30oz', 'mug', 'tumbler' ),
+                'image_url'    => '',
+                'image_mode'   => 'side_diagram',
+                'diagram_type' => 'mug',
+                'table_title'  => 'DRINKWARE',
+                'columns'      => array( 'STYLE', 'HEIGHT(in)', 'DIAMETER(in)' ),
+                'rows'         => array(
+                    array( '11oz Mug', '3.8', '3.2' ),
+                    array( '15oz Mug', '4.7', '3.4' ),
+                    array( '20oz Tumbler', '8.3', '2.9' ),
+                    array( '30oz Tumbler', '9.6', '3.4' ),
+                ),
+            ),
+        );
+    }
+
+    /**
+     * Generates a clean high-contrast garment / product silhouette SVG with WIDTH & LENGTH callout lines
+     */
+    public static function get_garment_diagram_svg( string $diagram_type ): string {
+        $type = strtolower( trim( $diagram_type ) );
+        if ( $type === 'mug' || $type === 'tumbler' || $type === 'tumbler-mug' ) {
+            return '<svg viewBox="0 0 280 300" class="pod-sg-diagram-svg" aria-hidden="true">'
+                . '<rect x="64" y="54" width="124" height="192" rx="14" fill="#14171A" stroke="#2D333B" stroke-width="2"/>'
+                . '<path d="M188 88h26c18 0 30 14 30 34v32c0 20-12 34-30 34h-26v-22h22c8 0 12-6 12-14v-28c0-8-4-14-12-14h-22V88z" fill="#14171A"/>'
+                . '<line x1="66" y1="150" x2="186" y2="150" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<line x1="106" y1="56" x2="106" y2="244" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<text x="118" y="141" fill="#FFFFFF" font-size="15" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1">DIAMETER</text>'
+                . '<text x="115" y="176" fill="#FFFFFF" font-size="15" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 115 176)">HEIGHT</text>'
+                . '</svg>';
+        }
+
+        if ( $type === 'hoodie' ) {
+            return '<svg viewBox="0 0 300 330" class="pod-sg-diagram-svg" aria-hidden="true">'
+                . '<path d="M108 42c6-18 22-28 42-28s36 10 42 28l62 28 24 198-36 8-18-136-12 8v152H88V148l-12-8-18 136-36-8 24-198 62-28z" fill="#14171A"/>'
+                . '<path d="M116 44c8 14 20 20 34 20s26-6 34-20" fill="none" stroke="#334155" stroke-width="3"/>'
+                . '<path d="M108 224h84l10 48H98l10-48z" fill="none" stroke="#2D333B" stroke-width="2.5"/>'
+                . '<rect x="88" y="286" width="124" height="14" fill="#0B0D0F"/>'
+                . '<line x1="138" y1="62" x2="138" y2="96" stroke="#94A3B8" stroke-width="2.5"/>'
+                . '<line x1="162" y1="62" x2="162" y2="96" stroke="#94A3B8" stroke-width="2.5"/>'
+                . '<line x1="88" y1="145" x2="212" y2="145" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<line x1="115" y1="48" x2="115" y2="300" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<text x="124" y="136" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1">WIDTH</text>'
+                . '<text x="123" y="162" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 123 162)">LENGTH</text>'
+                . '</svg>';
+        }
+
+        if ( $type === 'sweatshirt' || $type === 'longsleeve' ) {
+            return '<svg viewBox="0 0 300 330" class="pod-sg-diagram-svg" aria-hidden="true">'
+                . '<path d="M112 36c10 12 24 17 38 17s28-5 38-17l64 28 24 206-36 7-18-144-10 8v159H88V141l-10-8-18 144-36-7 24-206 64-28z" fill="#14171A"/>'
+                . '<path d="M108 38c11 15 26 22 42 22s31-7 42-22" fill="none" stroke="#2D333B" stroke-width="4"/>'
+                . '<rect x="143" y="43" width="14" height="9" rx="1" fill="#E2E8F0"/>'
+                . '<rect x="88" y="286" width="124" height="14" fill="#0B0D0F"/>'
+                . '<line x1="88" y1="142" x2="212" y2="142" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<line x1="114" y1="39" x2="114" y2="300" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<text x="123" y="133" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1">WIDTH</text>'
+                . '<text x="122" y="158" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 122 158)">LENGTH</text>'
+                . '</svg>';
+        }
+
+        if ( $type === 'tanktop' ) {
+            return '<svg viewBox="0 0 300 330" class="pod-sg-diagram-svg" aria-hidden="true">'
+                . '<path d="M110 34c8 30 22 44 40 44s32-14 40-44h22c2 46 10 76 22 96v170H66V130c12-20 20-50 22-96h22z" fill="#14171A"/>'
+                . '<line x1="66" y1="150" x2="234" y2="150" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<line x1="108" y1="36" x2="108" y2="300" stroke="#FFFFFF" stroke-width="4"/>'
+                . '<text x="120" y="140" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1">WIDTH</text>'
+                . '<text x="116" y="166" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 116 166)">LENGTH</text>'
+                . '</svg>';
+        }
+
+        // Default T-Shirt / V-Neck / Youth Shirt / Baseball Jersey silhouette
+        $neck_path = ( $type === 'vneck' )
+            ? '<path d="M114 36l36 38 36-38" fill="#FFFFFF"/>'
+            : '<rect x="143" y="43" width="14" height="9" rx="1" fill="#E2E8F0"/>';
+        $jersey_placket = ( $type === 'jersey' )
+            ? '<line x1="150" y1="53" x2="150" y2="300" stroke="#334155" stroke-width="2.5" stroke-dasharray="6,6"/>'
+            : '';
+
+        return '<svg viewBox="0 0 300 330" class="pod-sg-diagram-svg" aria-hidden="true">'
+            . '<path d="M112 36c10 13 24 19 38 19s28-6 38-19l76 32-24 62-28-14v184H88V116l-28 14-24-62 76-32z" fill="#14171A"/>'
+            . $neck_path
+            . $jersey_placket
+            . '<line x1="88" y1="145" x2="212" y2="145" stroke="#FFFFFF" stroke-width="4"/>'
+            . '<line x1="115" y1="39" x2="115" y2="300" stroke="#FFFFFF" stroke-width="4"/>'
+            . '<text x="124" y="136" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1">WIDTH</text>'
+            . '<text x="123" y="162" fill="#FFFFFF" font-size="17" font-weight="600" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 123 162)">LENGTH</text>'
+            . '</svg>';
+    }
+
+    /**
+     * Render either a FashionBoomy-style Multi-Tab Size Guide (with uploaded Size Chart images OR diagram+table)
+     * or legacy HTML content when `tabs` is not configured.
+     */
+    public static function render_popup_modal_inner( array $p_cfg ): string {
+        $tabs = isset( $p_cfg['tabs'] ) && is_array( $p_cfg['tabs'] ) ? array_values( $p_cfg['tabs'] ) : array();
+        if ( empty( $tabs ) ) {
+            $raw_html = (string) ( $p_cfg['content'] ?? '' );
+            if ( function_exists( 'sac_cloak_external_media_url' ) && strpos( $raw_html, '/r2-cdn/' ) !== false ) {
+                $raw_html = preg_replace_callback(
+                    '#https?://[^\s"\'<>]+/r2-cdn/[^\s"\'<>]+#i',
+                    function( $m ) {
+                        return esc_url( sac_cloak_external_media_url( $m[0] ) );
+                    },
+                    $raw_html
+                );
+            }
+            return wp_kses_post( $raw_html );
+        }
+
+        $brand_title = trim( (string) ( $p_cfg['header_title'] ?? '' ) );
+        if ( $brand_title === '' ) {
+            $brand_title = strtoupper( (string) get_bloginfo( 'name' ) );
+        }
+        $logo_url = trim( (string) ( $p_cfg['header_logo_url'] ?? '' ) );
+        if ( $logo_url !== '' && function_exists( 'sac_cloak_external_media_url' ) ) {
+            $logo_url = sac_cloak_external_media_url( $logo_url );
+        }
+        $disclaimer = isset( $p_cfg['disclaimer'] )
+            ? trim( (string) $p_cfg['disclaimer'] )
+            : 'For apparel products, there might be ±1.5in (±4cm) deviation in length for manual measurement and production processes. The sizing chart is for reference only.';
+
+        ob_start();
+        ?>
+        <div class="pod-sg-multitab">
+            <div class="pod-sg-header">
+                <?php if ( $logo_url !== '' ) : ?>
+                    <img src="<?php echo esc_url( $logo_url ); ?>" alt="<?php echo esc_attr( $brand_title ); ?>" class="pod-sg-brand-logo" />
+                <?php elseif ( $brand_title !== '' ) : ?>
+                    <div class="pod-sg-brand-title"><?php echo esc_html( $brand_title ); ?></div>
+                <?php endif; ?>
+                <?php if ( $disclaimer !== '' ) : ?>
+                    <p class="pod-sg-disclaimer"><?php echo nl2br( esc_html( $disclaimer ) ); ?></p>
+                <?php endif; ?>
+            </div>
+
+            <div class="pod-sg-tabs-bar" role="tablist">
+                <span class="pod-sg-bar-prefix">SIZE CHART</span>
+                <?php foreach ( $tabs as $t_idx => $tab ) :
+                    $tid          = sanitize_key( $tab['id'] ?? ( 'tab_' . $t_idx ) );
+                    $tlabel       = strtoupper( trim( (string) ( $tab['label'] ?? ( 'Tab ' . ( $t_idx + 1 ) ) ) ) );
+                    $match_styles = '';
+                    if ( ! empty( $tab['match_styles'] ) && is_array( $tab['match_styles'] ) ) {
+                        $match_styles = implode( ',', array_map( 'sanitize_title', $tab['match_styles'] ) );
+                    } elseif ( ! empty( $tab['match_styles'] ) && is_string( $tab['match_styles'] ) ) {
+                        $match_styles = sanitize_text_field( $tab['match_styles'] );
+                    }
+                ?>
+                    <button type="button"
+                            role="tab"
+                            class="pod-sg-tab-btn<?php echo $t_idx === 0 ? ' is-active' : ''; ?>"
+                            aria-selected="<?php echo $t_idx === 0 ? 'true' : 'false'; ?>"
+                            data-sg-tab="<?php echo esc_attr( $tid ); ?>"
+                            data-match-styles="<?php echo esc_attr( $match_styles ); ?>">
+                        <?php echo esc_html( $tlabel ); ?>
+                    </button>
+                <?php endforeach; ?>
+            </div>
+
+            <div class="pod-sg-panels">
+                <?php foreach ( $tabs as $t_idx => $tab ) :
+                    $tid        = sanitize_key( $tab['id'] ?? ( 'tab_' . $t_idx ) );
+                    $tlabel     = strtoupper( trim( (string) ( $tab['label'] ?? '' ) ) );
+                    $img_url    = trim( (string) ( $tab['image_url'] ?? '' ) );
+                    if ( $img_url !== '' && function_exists( 'sac_cloak_external_media_url' ) ) {
+                        $img_url = sac_cloak_external_media_url( $img_url );
+                    }
+                    $img_mode   = (string) ( $tab['image_mode'] ?? ( $img_url !== '' ? 'full_chart' : 'side_diagram' ) );
+                    $diag_type  = (string) ( $tab['diagram_type'] ?? $tid );
+                    $tbl_title  = strtoupper( trim( (string) ( $tab['table_title'] ?? $tlabel ) ) );
+                    $cols       = isset( $tab['columns'] ) && is_array( $tab['columns'] ) && ! empty( $tab['columns'] )
+                        ? array_values( $tab['columns'] )
+                        : array( 'SIZE', 'LENGTH(in)', 'WIDTH(in)' );
+                    $rows       = isset( $tab['rows'] ) && is_array( $tab['rows'] ) ? array_values( $tab['rows'] ) : array();
+                    $extra_html = trim( (string) ( $tab['html'] ?? '' ) );
+                ?>
+                    <div class="pod-sg-tab-panel<?php echo $t_idx === 0 ? ' is-active' : ''; ?>"
+                         data-sg-panel="<?php echo esc_attr( $tid ); ?>"
+                         style="<?php echo $t_idx === 0 ? '' : 'display:none;'; ?>">
+
+                        <?php if ( $img_url !== '' && $img_mode === 'full_chart' ) : ?>
+                            <div class="pod-sg-full-image-wrap">
+                                <img src="<?php echo esc_url( $img_url ); ?>"
+                                     alt="<?php echo esc_attr( $tlabel . ' Size Chart' ); ?>"
+                                     class="pod-sg-full-image"
+                                     loading="lazy" />
+                            </div>
+                        <?php elseif ( ! empty( $rows ) ) : ?>
+                            <div class="pod-sg-chart-scroll">
+                                <table class="pod-sg-split-table">
+                                    <thead>
+                                        <tr>
+                                            <th class="pod-sg-col-garment"><?php echo esc_html( $tbl_title ); ?></th>
+                                            <?php foreach ( $cols as $col_name ) : ?>
+                                                <th><?php echo esc_html( $col_name ); ?></th>
+                                            <?php endforeach; ?>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php foreach ( $rows as $r_idx => $row_cells ) :
+                                            $cells = is_array( $row_cells ) ? array_values( $row_cells ) : array();
+                                        ?>
+                                            <tr>
+                                                <?php if ( $r_idx === 0 ) : ?>
+                                                    <td class="pod-sg-diagram-cell" rowspan="<?php echo intval( count( $rows ) ); ?>">
+                                                        <?php if ( $img_url !== '' ) : ?>
+                                                            <img src="<?php echo esc_url( $img_url ); ?>"
+                                                                 alt="<?php echo esc_attr( $tbl_title ); ?>"
+                                                                 class="pod-sg-side-image"
+                                                                 loading="lazy" />
+                                                        <?php else : ?>
+                                                            <?php echo self::get_garment_diagram_svg( $diag_type ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped ?>
+                                                        <?php endif; ?>
+                                                    </td>
+                                                <?php endif; ?>
+                                                <?php foreach ( $cols as $c_idx => $_ ) : ?>
+                                                    <td><?php echo esc_html( (string) ( $cells[ $c_idx ] ?? '' ) ); ?></td>
+                                                <?php endforeach; ?>
+                                            </tr>
+                                        <?php endforeach; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        <?php endif; ?>
+
+                        <?php if ( $extra_html !== '' ) : ?>
+                            <div class="pod-sg-extra-html"><?php echo wp_kses_post( $extra_html ); ?></div>
+                        <?php endif; ?>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php
+        return (string) ob_get_clean();
     }
 
     /**
