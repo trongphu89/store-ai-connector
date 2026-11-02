@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.3' );
+define( 'SAC_VERSION',           '2.5.5' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );
@@ -503,11 +503,15 @@ function sac_verify( $request ) {
 function sac_health( $request ) {
     $has_woo = class_exists( 'WooCommerce' );
     return rest_ensure_response( array(
-        'status'      => 'ok',
-        'version'     => SAC_VERSION,
-        'site'        => get_bloginfo( 'name' ),
-        'woocommerce' => $has_woo,
-        'timestamp'   => time(),
+        'status'              => 'ok',
+        'version'             => SAC_VERSION,
+        'site'                => get_bloginfo( 'name' ),
+        'woocommerce'         => $has_woo,
+        'option_forms_loaded' => class_exists( 'POD_Option_Forms', false ),
+        'option_forms_count'  => class_exists( 'POD_Option_Forms', false ) ? count( POD_Option_Forms::get_forms() ) : 0,
+        'hook_before_atc'     => class_exists( 'POD_Option_Forms', false ) ? has_action( 'woocommerce_before_add_to_cart_button', array( 'POD_Option_Forms', 'render_product_option_form' ) ) : false,
+        'active_plugins'      => get_option( 'active_plugins', array() ),
+        'timestamp'           => time(),
     ) );
 }
 
@@ -1095,6 +1099,9 @@ function sac_format_product( $product ) {
         'date_created'    => $product->get_date_created() ? $product->get_date_created()->format( 'Y-m-d\TH:i:s' ) : null,
         'date_modified'   => $product->get_date_modified() ? $product->get_date_modified()->format( 'Y-m-d\TH:i:s' ) : null,
         'external_id'     => get_post_meta( $product->get_id(), '_external_id', true ),
+        'option_form_debug' => ( class_exists( 'POD_Option_Forms', false ) && method_exists( 'POD_Option_Forms', 'diagnose_product' ) )
+            ? POD_Option_Forms::diagnose_product( intval( $product->get_id() ) )
+            : null,
     );
 
     return $data;
@@ -1939,6 +1946,8 @@ function sac_create_variable_product( $request ) {
             if ( ! empty( $params['tags'] ) && is_array( $params['tags'] ) ) {
                 wp_set_object_terms( $product_id, array_map( 'sanitize_text_field', $params['tags'] ), 'product_tag' );
             }
+            delete_post_meta( $product_id, POD_Option_Forms::PRODUCT_EXCLUDE_KEY );
+            delete_post_meta( $product_id, '_pod_variations' );
             if ( ! empty( $params['option_form_id'] ) ) {
                 update_post_meta( $product_id, POD_Option_Forms::PRODUCT_FORM_META, sanitize_key( $params['option_form_id'] ) );
             }
@@ -1951,6 +1960,10 @@ function sac_create_variable_product( $request ) {
             }
 
             POD_Option_Forms::maybe_seed_default_forms();
+            if ( function_exists( 'wc_delete_product_transients' ) ) {
+                wc_delete_product_transients( $product_id );
+            }
+            clean_post_cache( $product_id );
             do_action( 'litespeed_purge_post', $product_id );
             do_action( 'litespeed_purge_all' );
 
@@ -2922,11 +2935,26 @@ function sac_migrate_images_to_r2( $request ) {
             $product->set_image_id( $new_ids[0] );
             $product->set_gallery_image_ids( count( $new_ids ) > 1 ? array_slice( $new_ids, 1 ) : array() );
         }
+        if ( ! empty( $item['category_ids'] ) && is_array( $item['category_ids'] ) && taxonomy_exists( 'product_cat' ) ) {
+            $product->set_category_ids( array_values( array_filter( array_map( 'intval', $item['category_ids'] ) ) ) );
+        }
 
         $product->save();
 
         if ( ! empty( $item['tags'] ) && is_array( $item['tags'] ) ) {
             wp_set_object_terms( $pid, array_map( 'sanitize_text_field', $item['tags'] ), 'product_tag' );
+        }
+        if ( ! empty( $item['enable_virtual_variants'] ) ) {
+            delete_post_meta( $pid, POD_Option_Forms::PRODUCT_EXCLUDE_KEY );
+            delete_post_meta( $pid, '_pod_variations' );
+        }
+        if ( isset( $item['option_form_id'] ) ) {
+            $f_id = sanitize_key( (string) $item['option_form_id'] );
+            if ( $f_id !== '' ) {
+                update_post_meta( $pid, POD_Option_Forms::PRODUCT_FORM_META, $f_id );
+            } else {
+                delete_post_meta( $pid, POD_Option_Forms::PRODUCT_FORM_META );
+            }
         }
         if ( ! empty( $item['meta_data'] ) && is_array( $item['meta_data'] ) ) {
             foreach ( $item['meta_data'] as $meta ) {
@@ -2935,6 +2963,10 @@ function sac_migrate_images_to_r2( $request ) {
                 }
             }
         }
+        if ( function_exists( 'wc_delete_product_transients' ) ) {
+            wc_delete_product_transients( $pid );
+        }
+        clean_post_cache( $pid );
 
         $deleted_local_attachments = 0;
         foreach ( $old_ids as $old_id ) {

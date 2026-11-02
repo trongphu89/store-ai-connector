@@ -3,7 +3,7 @@
  * Plugin Name: Store AI Connector
  * Plugin URI:  https://github.com/YOUR_GITHUB/store-ai-connector
  * Description: REST API connector for multi-store order management, GMC setup, and lightweight Virtual Option Forms.
- * Version:     2.5.3
+ * Version:     2.5.5
  * Author:      POD AI Hub
  * License:     GPL v2 or later
  * Text Domain: store-ai-connector
@@ -17,8 +17,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Automatic OPcache & LiteSpeed Cache invalidation on plugin upgrade (CyberPanel / OpenLiteSpeed safe).
  */
-if ( get_option( 'sac_installed_version', '' ) !== '2.5.3' ) {
-    update_option( 'sac_installed_version', '2.5.3', true );
+if ( get_option( 'sac_installed_version', '' ) !== '2.5.5' ) {
+    update_option( 'sac_installed_version', '2.5.5', true );
     if ( function_exists( 'opcache_reset' ) ) {
         @opcache_reset();
     }
@@ -27,6 +27,8 @@ if ( get_option( 'sac_installed_version', '' ) !== '2.5.3' ) {
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/sac-core.php', true );
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms.php', true );
         @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms-admin.php', true );
+        @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-pod-custom-fields.php', true );
+        @wp_opcache_invalidate( plugin_dir_path( __FILE__ ) . 'includes/class-sac-orders.php', true );
     }
     if ( function_exists( 'do_action' ) ) {
         do_action( 'litespeed_purge_all' );
@@ -75,7 +77,7 @@ if (
     }
 
     if ( ! defined( 'SAC_VERSION' ) ) {
-        define( 'SAC_VERSION', '2.5.3' );
+        define( 'SAC_VERSION', '2.5.5' );
     }
     if ( ! class_exists( 'POD_Option_Forms', false ) ) {
         require_once plugin_dir_path( __FILE__ ) . 'includes/class-pod-option-forms.php';

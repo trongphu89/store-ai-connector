@@ -1,99 +1,22 @@
-# POD AI Connector - WordPress Plugin Changelog
+# Store AI Connector — WordPress Plugin Changelog
+
+## Version 2.5.5 - 2026-11-02
+
+### Critical Fixes & Enhancements
+- **Virtual Variants (`POD_Option_Forms` & `POD_Option_Forms_Admin`)**: Wrapped class definitions in `if ( ! class_exists( ..., false ) ) : ... endif;` so PHP 8+ runtime class binding always executes `POD_Option_Forms::init()` and `POD_Option_Forms_Admin::init()` (`woocommerce_before_add_to_cart_button` priority 14, `"From $XX.XX"` shop archive badge, and WP-Admin product tab).
+- **Fleece Preset (`preset_sweatshirt_hoodie`)**: Added dedicated virtual variant preset for `sweatshirts`, `crewnecks`, `hoodies`, and `custom-team-hoodies` so sweatshirt base prices are never double-charged, plus expanded category/title fallback matching.
+- **Structured SEO Product Description Styling (`.pod-seo-description`)**: Added clean section headings, bullet spacing, FAQ cards, and CTA layout styles enqueued across all WooCommerce product pages.
+
+---
+
+## Version 2.5.3 - 2026-11-02
+
+### Virtual Cloudflare R2 WebP Attachments & SEO Migration
+- Added virtual R2 attachment support (`_pod_external_r2_url`) and `POST /wp-json/sac/v1/migrate-images-to-r2` so WooCommerce serves `< 1 MB` SEO-named `.webp` images directly from R2 without storing binaries in `wp-content/uploads/`.
+
+---
 
 ## Version 2.4.0 - 2026-06-04
 
-### ✨ Multi-Preset Custom Fields
-
-#### Gán nhiều Custom Field Preset cho 1 sản phẩm
-- **Trước**: Chỉ gán được 1 preset (Custom Name HOẶC Custom Photo)
-- **Sau**: Gán được nhiều preset cùng lúc (Custom Name + Custom Photo + ...)
-- **Backwards-compatible**: Sản phẩm cũ (single preset) tự động migrate sang format mới
-
-#### Cách hoạt động
-- Plugin lưu `presets` array trong `_pod_custom_fields` meta
-- Fields từ tất cả presets được **merge** → hiển thị tất cả trên product page
-- Extra fee được **cộng dồn** từ tất cả presets
-- Gán lại cùng preset_id → **thay thế** preset đó (không duplicate)
-
-#### Frontend
-- Tất cả fields từ mọi preset hiển thị trong 1 form Personalization
-- Validation, cart, order, email hoạt động bình thường (không cần thay đổi)
-
-### ⚠️ Upgrade Notes
-1. Update plugin zip trên WordPress
-2. Không cần xóa custom fields cũ — tự động migrate
-3. Test: Gán 2 preset khác nhau cho 1 sản phẩm → kiểm tra product page
-
----
-
-## Version 2.2.3 - 2026-03-04
-
-### 🐛 Critical Fixes
-
-#### Gallery Update Cache Issue
-- **Added**: Auto cache clearing after gallery update
-- **Functions**: 
-  - `wc_delete_product_transients()` - Clear WooCommerce transients
-  - `wp_cache_delete()` - Clear WordPress object cache
-- **Applied to**:
-  - `pod_connector_update_product_gallery()` - Single product update
-  - `pod_connector_bulk_update_galleries()` - Bulk update
-- **Impact**: Gallery changes now visible immediately on frontend
-
-### 📝 Code Changes
-
-```php
-// Added to both single and bulk update functions
-wc_delete_product_transients( $product_id );
-wp_cache_delete( 'product-' . $product_id, 'products' );
-```
-
-### ⚠️ Upgrade Notes
-
-**From v2.2.2 or earlier**:
-1. Backup current plugin
-2. Deactivate old version
-3. Delete old plugin files
-4. Upload new version
-5. Activate plugin
-6. Test gallery update with 1 product
-
-**Important**: This update is REQUIRED for gallery update feature to work properly.
-
----
-
-## Version 2.2.2 - Previous Release
-
-### Features
-- Bulk gallery update endpoint
-- Custom fields management
-- POD Variations support
-- GMC compliance features
-
----
-
-## Installation
-
-1. Upload `pod-ai-connector` folder to `/wp-content/plugins/`
-2. Activate plugin through WordPress admin
-3. Configure API keys in POD AI Designer Pro app
-4. Test connection
-
----
-
-## Requirements
-
-- WordPress 5.8+
-- WooCommerce 6.0+
-- PHP 7.4+
-- POD AI Designer Pro v2.2.3+
-
----
-
-## Support
-
-For issues or questions:
-1. Check documentation in POD AI Designer Pro app
-2. Review `FIX_AI_DESIGN_MOCKUP_AND_WOOCOMMERCE.md`
-3. Test with default theme (Storefront)
-4. Clear all caches (WooCommerce, WordPress, Plugin, CDN)
+### Multi-Preset Custom Fields
+- Support merging multiple Personalization presets (e.g. Custom Photo + Custom Name) on a single product.

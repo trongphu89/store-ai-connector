@@ -14,13 +14,17 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( class_exists( 'POD_Option_Forms_Admin', false ) ) {
-    return;
-}
+if ( ! class_exists( 'POD_Option_Forms_Admin', false ) ) :
 
 class POD_Option_Forms_Admin {
 
+    private static $initialized = false;
+
     public static function init() {
+        if ( self::$initialized ) {
+            return;
+        }
+        self::$initialized = true;
         add_action( 'admin_menu', array( __CLASS__, 'register_admin_menus' ), 25 );
         add_action( 'admin_post_pod_of_save_form', array( __CLASS__, 'handle_save_form' ) );
         add_action( 'admin_post_pod_of_quick_action', array( __CLASS__, 'handle_quick_action' ) );
@@ -656,5 +660,7 @@ class POD_Option_Forms_Admin {
         }
     }
 }
+
+endif;
 
 POD_Option_Forms_Admin::init();

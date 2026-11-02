@@ -16,11 +16,11 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit;
 }
 
-if ( class_exists( 'POD_Option_Forms', false ) ) {
-    return;
-}
+if ( ! class_exists( 'POD_Option_Forms', false ) ) :
 
 class POD_Option_Forms {
+
+    private static $initialized = false;
 
     const OPTION_KEY          = 'pod_option_forms_v1';
     const SEEDED_FLAG_KEY     = 'pod_option_forms_seeded_v1';
@@ -106,7 +106,7 @@ class POD_Option_Forms {
                 'description'          => 'Single T-Shirt mockup sells Unisex T-Shirt, V-neck, Long Sleeve, Hoodie, Sweatshirt & Tank Top with Fit Type, Size Guide, and 15 Color Pills.',
                 'is_active'            => true,
                 'priority'             => 10,
-                'category_slugs'       => array( 't-shirts', 'apparel', 'shirts', 'clothing', 'trending' ),
+                'category_slugs'       => array( 't-shirts', 'apparel', 'shirts', 'clothing', 'trending', 'tank-tops', 'long-sleeves', 'v-neck' ),
                 'tag_slugs'            => array(),
                 'show_price_summary'   => false,
                 'enable_gmc_schema'    => true,
@@ -194,12 +194,97 @@ class POD_Option_Forms {
                 ),
             ),
             array(
+                'id'                   => 'preset_sweatshirt_hoodie',
+                'name'                 => 'Fleece — Crewneck Sweatshirt & Pullover Hoodie',
+                'description'          => 'Virtual Style (Crewneck Sweatshirt / Heavyweight Hoodie), Fit Type, Size Guide, and Fleece Color Pills without double-charging sweatshirt base prices.',
+                'is_active'            => true,
+                'priority'             => 12,
+                'category_slugs'       => array( 'sweatshirts', 'crewnecks', 'hoodies', 'custom-team-hoodies', 'pullovers', 'fleece' ),
+                'tag_slugs'            => array(),
+                'show_price_summary'   => false,
+                'enable_gmc_schema'    => true,
+                'fields'               => array(
+                    array(
+                        'id'                     => 'fit_type',
+                        'type'                   => 'button_group',
+                        'label'                  => 'Fit Type',
+                        'required'               => true,
+                        'show_check'             => true,
+                        'show_selected_in_label' => false,
+                        'semantic_role'          => 'fit',
+                        'options'                => array(
+                            array( 'id' => 'men', 'label' => 'Men', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'women', 'label' => 'Women', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'youth', 'label' => 'Youth', 'price_mode' => 'none', 'price' => 0 ),
+                        ),
+                    ),
+                    array(
+                        'id'            => 'style',
+                        'type'          => 'visual_card_group',
+                        'label'         => 'Style',
+                        'required'      => true,
+                        'semantic_role' => 'style',
+                        'options'       => array(
+                            array( 'id' => 'unisex-sweatshirt', 'label' => 'Crewneck Sweatshirt', 'icon' => 'sweatshirt', 'price_mode' => 'add_fixed', 'price' => 0, 'sku_prefix' => 'G18000' ),
+                            array( 'id' => 'unisex-hoodie', 'label' => 'Pullover Hoodie (+$5.00)', 'icon' => 'hoodie', 'price_mode' => 'add_fixed', 'price' => 5.00, 'sku_prefix' => 'G18500' ),
+                        ),
+                    ),
+                    array(
+                        'id'            => 'size',
+                        'type'          => 'button_group',
+                        'label'         => 'Size',
+                        'required'      => true,
+                        'show_check'    => false,
+                        'semantic_role' => 'size',
+                        'helper_popup'  => array(
+                            'enabled'  => true,
+                            'label'    => 'Size Guide',
+                            'position' => 'inline_label',
+                            'icon'     => 'ruler',
+                            'content'  => $size_guide_apparel_html,
+                        ),
+                        'options'       => array(
+                            array( 'id' => 's', 'label' => 'S', 'price_mode' => 'add_fixed', 'price' => 0 ),
+                            array( 'id' => 'm', 'label' => 'M', 'price_mode' => 'add_fixed', 'price' => 0 ),
+                            array( 'id' => 'l', 'label' => 'L', 'price_mode' => 'add_fixed', 'price' => 0 ),
+                            array( 'id' => 'xl', 'label' => 'XL', 'price_mode' => 'add_fixed', 'price' => 0 ),
+                            array( 'id' => '2xl', 'label' => '2XL (+$2.00)', 'price_mode' => 'add_fixed', 'price' => 2.00 ),
+                            array( 'id' => '3xl', 'label' => '3XL (+$3.00)', 'price_mode' => 'add_fixed', 'price' => 3.00 ),
+                            array( 'id' => '4xl', 'label' => '4XL (+$4.00)', 'price_mode' => 'add_fixed', 'price' => 4.00 ),
+                            array( 'id' => '5xl', 'label' => '5XL (+$5.00)', 'price_mode' => 'add_fixed', 'price' => 5.00 ),
+                        ),
+                    ),
+                    array(
+                        'id'            => 'color',
+                        'type'          => 'color_swatch_group',
+                        'swatch_style'  => 'pill',
+                        'label'         => 'Color',
+                        'required'      => true,
+                        'semantic_role' => 'color',
+                        'options'       => array(
+                            array( 'id' => 'black', 'label' => 'Black', 'hex' => '#111111', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'sand', 'label' => 'Sand', 'hex' => '#E5DCCB', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'ash', 'label' => 'Ash', 'hex' => '#D1D5DB', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'sport-grey', 'label' => 'Sport Grey', 'hex' => '#9CA3AF', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'military-green', 'label' => 'Military Green', 'hex' => '#4D5D3B', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'forest-green', 'label' => 'Forest Green', 'hex' => '#14532D', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'navy', 'label' => 'Navy', 'hex' => '#1E293B', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'maroon', 'label' => 'Maroon', 'hex' => '#581C2F', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'red', 'label' => 'Red', 'hex' => '#DC2626', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'light-pink', 'label' => 'Light Pink', 'hex' => '#FCE7F3', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'white', 'label' => 'White', 'hex' => '#FFFFFF', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'charcoal', 'label' => 'Charcoal', 'hex' => '#4B5563', 'price_mode' => 'none', 'price' => 0 ),
+                        ),
+                    ),
+                ),
+            ),
+            array(
                 'id'                   => 'preset_custom_jersey',
                 'name'                 => 'Custom Jersey — Gender, Material, Team Name/Number & Logo',
                 'description'          => 'Full custom sports jersey configurator with Stitched vs Print material upcharge, conditional personalization fields, and custom logo upload.',
                 'is_active'            => true,
                 'priority'             => 15,
-                'category_slugs'       => array( 'jerseys', 'baseball-jerseys', 'custom-jerseys' ),
+                'category_slugs'       => array( 'jerseys', 'baseball-jerseys', 'basketball-jerseys', 'football-jerseys', 'hockey-jerseys', 'soccer-kits', 'custom-jerseys' ),
                 'tag_slugs'            => array( 'jersey' ),
                 'show_price_summary'   => true,
                 'enable_gmc_schema'    => true,
@@ -334,7 +419,7 @@ class POD_Option_Forms {
                 'description'        => 'Virtual capacity and accent color options for ceramic coffee mugs.',
                 'is_active'          => true,
                 'priority'           => 20,
-                'category_slugs'     => array( 'mugs', 'coffee-mugs' ),
+                'category_slugs'     => array( 'mugs', 'coffee-mugs', 'ceramic-mugs' ),
                 'tag_slugs'          => array(),
                 'show_price_summary' => false,
                 'enable_gmc_schema'  => true,
@@ -371,7 +456,7 @@ class POD_Option_Forms {
                 'description'        => 'Virtual size and finish options for insulated stainless steel tumblers.',
                 'is_active'          => true,
                 'priority'           => 25,
-                'category_slugs'     => array( 'tumblers', 'drinkware' ),
+                'category_slugs'     => array( 'tumblers', 'drinkware', 'stainless-steel-tumblers' ),
                 'tag_slugs'          => array(),
                 'show_price_summary' => false,
                 'enable_gmc_schema'  => true,
@@ -410,6 +495,10 @@ class POD_Option_Forms {
      * Initialize hooks
      */
     public static function init() {
+        if ( self::$initialized ) {
+            return;
+        }
+        self::$initialized = true;
         add_action( 'init', array( __CLASS__, 'maybe_seed_default_forms' ), 15 );
         add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_frontend_assets' ), 12 );
 
@@ -680,7 +769,8 @@ class POD_Option_Forms {
         if ( ! $product || ! $product->is_type( 'simple' ) ) {
             return null;
         }
-        if ( get_post_meta( $product_id, self::PRODUCT_EXCLUDE_KEY, true ) ) {
+        $excluded_raw = get_post_meta( $product_id, self::PRODUCT_EXCLUDE_KEY, true );
+        if ( in_array( $excluded_raw, array( '1', 1, true, 'yes', 'true' ), true ) ) {
             return null;
         }
 
@@ -699,22 +789,39 @@ class POD_Option_Forms {
             }
         }
 
-        // If legacy `_pod_variations` is already present on this product, let legacy `POD_Variations` render it unless overridden
+        // If legacy `_pod_variations` is already present with non-empty variations on this product, let legacy `POD_Variations` render it unless overridden
         $legacy_pv = get_post_meta( $product_id, '_pod_variations', true );
-        if ( ! empty( $legacy_pv ) ) {
+        if ( is_array( $legacy_pv ) && ( ! empty( $legacy_pv['product_types'] ) || ! empty( $legacy_pv['sizes'] ) || ! empty( $legacy_pv['colors'] ) ) ) {
             return null;
         }
 
-        // 2. Match by Product Category slugs
-        $cat_terms = get_the_terms( $product_id, 'product_cat' );
+        // 2. Match by Product Category slugs (from both WP term cache and WC category IDs + parent terms)
         $prod_cat_slugs = array();
+        $cat_terms = get_the_terms( $product_id, 'product_cat' );
         if ( ! empty( $cat_terms ) && ! is_wp_error( $cat_terms ) ) {
             foreach ( $cat_terms as $t ) {
                 $prod_cat_slugs[] = strtolower( $t->slug );
                 $prod_cat_slugs[] = sanitize_title( $t->name );
             }
         }
-        $prod_cat_slugs = array_unique( $prod_cat_slugs );
+        $wc_cat_ids = $product->get_category_ids();
+        if ( ! empty( $wc_cat_ids ) && is_array( $wc_cat_ids ) ) {
+            foreach ( $wc_cat_ids as $cid ) {
+                $term = get_term( intval( $cid ), 'product_cat' );
+                if ( $term && ! is_wp_error( $term ) ) {
+                    $prod_cat_slugs[] = strtolower( $term->slug );
+                    $prod_cat_slugs[] = sanitize_title( $term->name );
+                    $ancestors = get_ancestors( intval( $term->term_id ), 'product_cat', 'taxonomy' );
+                    foreach ( (array) $ancestors as $anc_id ) {
+                        $anc = get_term( intval( $anc_id ), 'product_cat' );
+                        if ( $anc && ! is_wp_error( $anc ) ) {
+                            $prod_cat_slugs[] = strtolower( $anc->slug );
+                        }
+                    }
+                }
+            }
+        }
+        $prod_cat_slugs = array_values( array_unique( array_filter( $prod_cat_slugs ) ) );
 
         if ( ! empty( $prod_cat_slugs ) ) {
             foreach ( $forms as $f ) {
@@ -745,7 +852,56 @@ class POD_Option_Forms {
             }
         }
 
+        // 4. Smart title-keyword fallback when category is uncategorized or custom-named
+        $title_lower = strtolower( (string) $product->get_name() );
+        $fallback_slug_targets = array();
+        if ( preg_match( '/\b(mug|ceramic\s+cup|coffee\s+cup)\b/i', $title_lower ) ) {
+            $fallback_slug_targets = array( 'mugs', 'coffee-mugs' );
+        } elseif ( preg_match( '/\b(tumbler|travel\s+cup|insulated\s+cup)\b/i', $title_lower ) ) {
+            $fallback_slug_targets = array( 'tumblers', 'drinkware' );
+        } elseif ( preg_match( '/\b(sweatshirt|crewneck|hoodie|pullover)\b/i', $title_lower ) ) {
+            $fallback_slug_targets = array( 'sweatshirts', 'hoodies', 't-shirts' );
+        } elseif ( preg_match( '/\b(jersey)\b/i', $title_lower ) ) {
+            $fallback_slug_targets = array( 'jerseys', 'baseball-jerseys' );
+        } elseif ( preg_match( '/\b(t-?shirt|shirt|tee|tank\s+top)\b/i', $title_lower ) ) {
+            $fallback_slug_targets = array( 't-shirts', 'apparel' );
+        }
+        if ( ! empty( $fallback_slug_targets ) ) {
+            foreach ( $fallback_slug_targets as $target_slug ) {
+                foreach ( $forms as $f ) {
+                    if ( empty( $f['is_active'] ) || empty( $f['category_slugs'] ) ) {
+                        continue;
+                    }
+                    foreach ( $f['category_slugs'] as $c_slug ) {
+                        if ( strtolower( $c_slug ) === $target_slug ) {
+                            return $f;
+                        }
+                    }
+                }
+            }
+        }
+
         return null;
+    }
+
+    /**
+     * Diagnostic helper for REST inspection of why an Option Form did or did not match a product.
+     */
+    public static function diagnose_product( int $product_id ): array {
+        $product  = function_exists( 'wc_get_product' ) ? wc_get_product( $product_id ) : null;
+        $resolved = self::resolve_form_for_product( $product_id );
+        return array(
+            'product_exists'   => (bool) $product,
+            'product_type'     => $product ? $product->get_type() : null,
+            'is_simple'        => $product ? $product->is_type( 'simple' ) : false,
+            'exclude_meta'     => get_post_meta( $product_id, self::PRODUCT_EXCLUDE_KEY, true ),
+            'explicit_form_id' => get_post_meta( $product_id, self::PRODUCT_FORM_META, true ),
+            'legacy_pv'        => get_post_meta( $product_id, '_pod_variations', true ),
+            'wc_category_ids'  => $product ? $product->get_category_ids() : array(),
+            'forms_count'      => count( self::get_forms() ),
+            'hook_before_atc'  => has_action( 'woocommerce_before_add_to_cart_button', array( __CLASS__, 'render_product_option_form' ) ),
+            'resolved_form_id' => $resolved ? ( $resolved['id'] ?? null ) : null,
+        );
     }
 
     /**
@@ -839,6 +995,12 @@ class POD_Option_Forms {
         if ( ! is_product() ) {
             return;
         }
+        wp_enqueue_style(
+            'pod-option-forms-css',
+            $plugin_base_url . 'assets/css/pod-option-forms.css',
+            array(),
+            SAC_VERSION
+        );
         global $post;
         if ( ! $post ) {
             return;
@@ -848,12 +1010,6 @@ class POD_Option_Forms {
             return;
         }
 
-        wp_enqueue_style(
-            'pod-option-forms-css',
-            $plugin_base_url . 'assets/css/pod-option-forms.css',
-            array(),
-            SAC_VERSION
-        );
         wp_enqueue_script(
             'pod-option-forms-js',
             $plugin_base_url . 'assets/js/pod-option-forms.js',
@@ -1477,5 +1633,7 @@ class POD_Option_Forms {
         echo '<script type="application/ld+json">' . wp_json_encode( $schema, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ) . "</script>\n";
     }
 }
+
+endif;
 
 POD_Option_Forms::init();
