@@ -1157,20 +1157,13 @@ class POD_Option_Forms {
         $base_price         = floatval( $product->get_price() ?: 24.99 );
         $svg_icons          = self::get_svg_library();
         $popups_to_out      = array();
-        $artwork_url        = trim( (string) get_post_meta( intval( $product->get_id() ), '_pod_artwork_url', true ) );
-        if ( $artwork_url !== '' && function_exists( 'sac_cloak_external_media_url' ) ) {
-            $artwork_url = sac_cloak_external_media_url( $artwork_url );
-        }
         $meta_default_color = sanitize_title( (string) get_post_meta( intval( $product->get_id() ), '_pod_default_color', true ) );
-        $store_domain       = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
         ?>
         <div class="pod-of-container"
              data-form-id="<?php echo esc_attr( $form['id'] ); ?>"
              data-base-price="<?php echo esc_attr( number_format( $base_price, 2, '.', '' ) ); ?>"
              data-show-summary="<?php echo ! empty( $form['show_price_summary'] ) ? '1' : '0'; ?>"
-             data-artwork-url="<?php echo esc_attr( $artwork_url ); ?>"
-             data-default-color="<?php echo esc_attr( $meta_default_color ); ?>"
-             data-store-domain="<?php echo esc_attr( $store_domain ); ?>">
+             data-default-color="<?php echo esc_attr( $meta_default_color ); ?>">
 
             <div class="pod-of-live-price-bar">
                 <span class="pod-of-live-price-amount"><?php echo wp_kses_post( wc_price( $base_price ) ); ?></span>
