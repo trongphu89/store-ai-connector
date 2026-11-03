@@ -21,10 +21,10 @@ class POD_Custom_Fields {
         add_action( 'woocommerce_before_add_to_cart_button', array( __CLASS__, 'render_custom_fields_form' ), 20 );
         add_filter( 'woocommerce_add_to_cart_validation', array( __CLASS__, 'validate_custom_fields' ), 10, 3 );
         
-        // Cart integration
+        // Cart integration (priority 30 runs after POD_Variations priority 20 and POD_Option_Forms priority 25)
         add_filter( 'woocommerce_add_cart_item_data', array( __CLASS__, 'add_custom_fields_to_cart' ), 10, 3 );
-        add_filter( 'woocommerce_get_item_data', array( __CLASS__, 'display_custom_fields_in_cart' ), 10, 2 );
-        add_action( 'woocommerce_cart_calculate_fees', array( __CLASS__, 'add_personalization_fee' ) );
+        add_filter( 'woocommerce_get_item_data', array( __CLASS__, 'display_custom_fields_in_cart' ), 15, 2 );
+        add_action( 'woocommerce_before_calculate_totals', array( __CLASS__, 'apply_personalization_unit_price' ), 30, 1 );
         
         // Order integration
         add_action( 'woocommerce_checkout_create_order_line_item', array( __CLASS__, 'save_custom_fields_to_order' ), 10, 4 );
@@ -189,6 +189,12 @@ class POD_Custom_Fields {
                         class="pod-file-path"
                         <?php echo $required_attr; ?>
                     />
+                    <input
+                        type="hidden"
+                        name="<?php echo esc_attr( $input_name ); ?>_orig"
+                        class="pod-file-orig"
+                        value=""
+                    />
                     <div class="pod-file-dropzone">
                         <span class="pod-file-icon">📁</span>
                         <span class="pod-file-text"><?php esc_html_e( 'Click or drag file here', 'pod-connector' ); ?></span>
@@ -280,16 +286,22 @@ class POD_Custom_Fields {
         $custom_data = array();
         
         foreach ( $custom_fields['fields'] as $field ) {
-            $field_id = isset( $field['id'] ) ? sanitize_key( $field['id'] ) : '';
+            $field_id   = isset( $field['id'] ) ? sanitize_key( $field['id'] ) : '';
             $input_name = 'pod_custom_' . $field_id;
-            $value = isset( $_POST[ $input_name ] ) ? sanitize_text_field( $_POST[ $input_name ] ) : '';
-            
+            $value      = isset( $_POST[ $input_name ] ) ? sanitize_text_field( wp_unslash( $_POST[ $input_name ] ) ) : '';
+            $orig_name  = isset( $_POST[ $input_name . '_orig' ] ) ? sanitize_file_name( wp_unslash( $_POST[ $input_name . '_orig' ] ) ) : '';
+
             if ( ! empty( $value ) ) {
-                $custom_data[ $field_id ] = array(
+                $ftype = isset( $field['type'] ) ? $field['type'] : 'text';
+                $entry = array(
                     'label' => isset( $field['label'] ) ? $field['label'] : $field_id,
                     'value' => $value,
-                    'type' => isset( $field['type'] ) ? $field['type'] : 'text',
+                    'type'  => $ftype,
                 );
+                if ( $ftype === 'file' ) {
+                    $entry['original_name'] = $orig_name !== '' ? $orig_name : basename( $value );
+                }
+                $custom_data[ $field_id ] = $entry;
             }
         }
         
@@ -318,9 +330,9 @@ class POD_Custom_Fields {
             $display_value = $field_data['value'];
             $display_html  = null;
             
-            // For file fields, render clickable signed view link
+            // For file fields, render clickable signed view link with customer's original filename
             if ( $field_data['type'] === 'file' && ! empty( $display_value ) ) {
-                $fname         = basename( $display_value );
+                $fname         = ! empty( $field_data['original_name'] ) ? $field_data['original_name'] : basename( $display_value );
                 $signed_url    = self::get_public_file_url( $display_value );
                 $display_value = '📎 ' . $fname;
                 $display_html  = '<a href="' . esc_url( $signed_url ) . '" target="_blank" rel="noopener">📎 ' . esc_html( $fname ) . '</a>';
@@ -335,34 +347,56 @@ class POD_Custom_Fields {
             }
             $item_data[] = $entry;
         }
+
+        if ( ! empty( $cart_item['pod_custom_fields_config']['enable_extra_fee'] ) && floatval( $cart_item['pod_custom_fields_config']['extra_fee'] ) > 0 ) {
+            $fee_amt   = floatval( $cart_item['pod_custom_fields_config']['extra_fee'] );
+            $fee_title = ! empty( $cart_item['pod_custom_fields_config']['fee_label'] ) ? $cart_item['pod_custom_fields_config']['fee_label'] : 'Personalization Fee';
+            $item_data[] = array(
+                'key'   => $fee_title,
+                'value' => sprintf( 'Included (+$%s)', number_format( $fee_amt, 2 ) ),
+            );
+        }
         
         return $item_data;
     }
 
     /**
-     * Add personalization fee to cart
+     * Apply personalization fee directly into each cart item's unit price so Product Page,
+     * Mini-Cart Drawer, Cart Page, and Checkout show 100% identical unit price and subtotal.
      */
-    public static function add_personalization_fee( $cart ) {
+    public static function apply_personalization_unit_price( $cart ) {
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) {
             return;
         }
-        
-        $total_fee = 0;
-        $fee_label = 'Personalization Fee';
-        
+        if ( ! $cart || ! method_exists( $cart, 'get_cart' ) ) {
+            return;
+        }
+
         foreach ( $cart->get_cart() as $cart_item ) {
-            if ( ! empty( $cart_item['pod_custom_fields'] ) && ! empty( $cart_item['pod_custom_fields_config'] ) ) {
-                $config = $cart_item['pod_custom_fields_config'];
-                
-                if ( ! empty( $config['enable_extra_fee'] ) && floatval( $config['extra_fee'] ) > 0 ) {
-                    $total_fee += floatval( $config['extra_fee'] ) * $cart_item['quantity'];
-                    $fee_label = $config['fee_label'];
+            if ( empty( $cart_item['pod_custom_fields'] ) || empty( $cart_item['pod_custom_fields_config'] ) || empty( $cart_item['data'] ) ) {
+                continue;
+            }
+            $config    = $cart_item['pod_custom_fields_config'];
+            $extra_fee = ! empty( $config['enable_extra_fee'] ) ? floatval( $config['extra_fee'] ?? 0 ) : 0.0;
+            if ( $extra_fee <= 0 ) {
+                continue;
+            }
+
+            if ( isset( $cart_item['pod_option_form_data']['final_price'] ) ) {
+                $base_unit = floatval( $cart_item['pod_option_form_data']['final_price'] );
+            } elseif ( isset( $cart_item['pod_variations']['final_price'] ) ) {
+                $base_unit = floatval( $cart_item['pod_variations']['final_price'] );
+            } else {
+                $stored_pre = $cart_item['data']->get_meta( '_pod_pre_cf_price', true );
+                if ( $stored_pre === '' || $stored_pre === null ) {
+                    $base_unit = floatval( $cart_item['data']->get_price() );
+                    $cart_item['data']->update_meta_data( '_pod_pre_cf_price', (string) $base_unit );
+                } else {
+                    $base_unit = floatval( $stored_pre );
                 }
             }
-        }
-        
-        if ( $total_fee > 0 ) {
-            $cart->add_fee( $fee_label, $total_fee );
+
+            $cart_item['data']->set_price( round( $base_unit + $extra_fee, 2 ) );
         }
     }
 
@@ -381,9 +415,12 @@ class POD_Custom_Fields {
             // Also save with internal key for programmatic access
             $item->add_meta_data( $meta_key, $field_data['value'], true );
             
-            // Mark file fields for secure download
+            // Mark file fields for secure download and preserve customer's original filename
             if ( $field_data['type'] === 'file' ) {
                 $item->add_meta_data( '_pod_custom_file_' . $field_id, $field_data['value'], true );
+                if ( ! empty( $field_data['original_name'] ) ) {
+                    $item->add_meta_data( '_pod_custom_orig_' . $field_id, $field_data['original_name'], true );
+                }
             }
         }
         
@@ -454,18 +491,40 @@ class POD_Custom_Fields {
     }
 
     /**
-     * Format order item meta for emails
+     * Format order item meta for emails and customer order summary
      */
     public static function format_order_item_meta( $formatted_meta, $item ) {
+        $orig_by_path = array();
+        if ( $item && method_exists( $item, 'get_meta_data' ) ) {
+            $raw_metas = $item->get_meta_data();
+            $files_map = array();
+            $origs_map = array();
+            foreach ( $raw_metas as $m ) {
+                if ( strpos( (string) $m->key, '_pod_custom_file_' ) === 0 ) {
+                    $fid = substr( (string) $m->key, strlen( '_pod_custom_file_' ) );
+                    $files_map[ $fid ] = (string) $m->value;
+                } elseif ( strpos( (string) $m->key, '_pod_custom_orig_' ) === 0 ) {
+                    $fid = substr( (string) $m->key, strlen( '_pod_custom_orig_' ) );
+                    $origs_map[ $fid ] = (string) $m->value;
+                }
+            }
+            foreach ( $files_map as $fid => $fpath ) {
+                if ( ! empty( $origs_map[ $fid ] ) ) {
+                    $orig_by_path[ $fpath ] = $origs_map[ $fid ];
+                }
+            }
+        }
+
         foreach ( $formatted_meta as $key => $meta ) {
             // Hide internal meta from emails
             if ( strpos( $meta->key, '_pod_custom_' ) === 0 ) {
                 unset( $formatted_meta[ $key ] );
+                continue;
             }
             
-            // Format file paths to show clickable signed link
+            // Format file paths to show clickable signed link with customer's original filename
             if ( is_string( $meta->value ) && strpos( $meta->value, '/pod-custom/' ) !== false ) {
-                $fname = basename( $meta->value );
+                $fname = isset( $orig_by_path[ $meta->value ] ) ? $orig_by_path[ $meta->value ] : basename( $meta->value );
                 $surl  = self::get_public_file_url( $meta->value );
                 $formatted_meta[ $key ]->display_value = '<a href="' . esc_url( $surl ) . '" target="_blank" rel="noopener">📎 ' . esc_html( $fname ) . '</a>';
             }
@@ -524,9 +583,17 @@ class POD_Custom_Fields {
             file_put_contents( $custom_dir . '/index.php', '<?php // Silence is golden' );
         }
         
-        // Generate unique filename
-        $unique_name = wp_generate_uuid4() . '_' . time() . '.' . $file_ext;
-        $file_path = $custom_dir . '/' . $unique_name;
+        // Generate readable unique filename preserving customer's sanitized original stem
+        $raw_stem   = pathinfo( $file['name'], PATHINFO_FILENAME );
+        $clean_stem = sanitize_file_name( $raw_stem );
+        $clean_stem = preg_replace( '/[^a-zA-Z0-9._-]+/', '-', (string) $clean_stem );
+        $clean_stem = trim( (string) $clean_stem, '-_.' );
+        if ( $clean_stem === '' ) {
+            $clean_stem = 'photo';
+        }
+        $clean_stem  = substr( $clean_stem, 0, 48 );
+        $unique_name = $clean_stem . '-' . substr( md5( wp_generate_uuid4() . microtime( true ) ), 0, 8 ) . '.' . $file_ext;
+        $file_path   = $custom_dir . '/' . $unique_name;
         
         // Move uploaded file
         if ( ! move_uploaded_file( $file['tmp_name'], $file_path ) ) {
@@ -538,7 +605,7 @@ class POD_Custom_Fields {
         
         wp_send_json_success( array(
             'path'     => $relative_path,
-            'filename' => $file['name'],
+            'filename' => sanitize_file_name( $file['name'] ),
             'preview'  => in_array( $file_ext, array( 'jpg', 'jpeg', 'png', 'webp' ), true )
                 ? self::get_public_file_url( $relative_path )
                 : null,

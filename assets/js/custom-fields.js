@@ -82,7 +82,7 @@
                     if (!enabled) {
                         var previews = wrapper.querySelectorAll('.pod-file-preview');
                         var dropzones = wrapper.querySelectorAll('.pod-file-dropzone');
-                        var paths = wrapper.querySelectorAll('.pod-file-path');
+                        var paths = wrapper.querySelectorAll('.pod-file-path, .pod-file-orig');
                         for (var p = 0; p < previews.length; p++) previews[p].style.display = 'none';
                         for (var d = 0; d < dropzones.length; d++) dropzones[d].style.display = '';
                         for (var h = 0; h < paths.length; h++) paths[h].value = '';
@@ -120,6 +120,7 @@
                 var preview = area.querySelector('.pod-file-preview');
                 var uploading = area.querySelector('.pod-file-uploading');
                 var hiddenInput = area.querySelector('.pod-file-path');
+                var origInput = area.querySelector('.pod-file-orig');
                 var previewImg = area.querySelector('.pod-file-preview-img');
                 var fileName = area.querySelector('.pod-file-name');
                 var removeBtn = area.querySelector('.pod-file-remove');
@@ -159,6 +160,7 @@
                             if (uploading) uploading.style.display = 'none';
                             if (response && response.success && response.data) {
                                 if (hiddenInput) hiddenInput.value = response.data.path || '';
+                                if (origInput) origInput.value = response.data.filename || file.name || '';
                                 if (fileName) fileName.textContent = response.data.filename || file.name;
                                 if (previewImg) {
                                     if (response.data.preview) {
@@ -216,6 +218,7 @@
                         e.preventDefault();
                         e.stopPropagation();
                         if (hiddenInput) hiddenInput.value = '';
+                        if (origInput) origInput.value = '';
                         if (input) input.value = '';
                         if (preview) preview.style.display = 'none';
                         if (dropzone) dropzone.style.display = '';

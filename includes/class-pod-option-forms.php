@@ -176,6 +176,7 @@ class POD_Option_Forms {
                         'semantic_role' => 'color',
                         'options'       => array(
                             array( 'id' => 'black', 'label' => 'Black', 'hex' => '#111111', 'price_mode' => 'none', 'price' => 0 ),
+                            array( 'id' => 'sand', 'label' => 'Sand', 'hex' => '#E5DCCB', 'price_mode' => 'none', 'price' => 0 ),
                             array( 'id' => 'sport-grey', 'label' => 'Sport Grey', 'hex' => '#9CA3AF', 'price_mode' => 'none', 'price' => 0 ),
                             array( 'id' => 'white', 'label' => 'White', 'hex' => '#FFFFFF', 'price_mode' => 'none', 'price' => 0 ),
                             array( 'id' => 'red', 'label' => 'Red', 'hex' => '#DC2626', 'price_mode' => 'none', 'price' => 0 ),
@@ -437,6 +438,14 @@ class POD_Option_Forms {
                         'required'      => true,
                         'show_check'    => true,
                         'semantic_role' => 'size',
+                        'helper_popup'  => array(
+                            'enabled'    => true,
+                            'label'      => 'Size Guide',
+                            'position'   => 'inline_label',
+                            'disclaimer' => 'Dimensions are measured across standard ceramic coffee mug capacity (11oz and 15oz).',
+                            'tabs'       => self::get_default_multitab_size_guide_tabs( 'apparel' ),
+                            'content'    => '',
+                        ),
                         'options'       => array(
                             array( 'id' => '11oz', 'label' => '11oz Classic Mug', 'price_mode' => 'none', 'price' => 0, 'sku_prefix' => 'MUG11' ),
                             array( 'id' => '15oz', 'label' => '15oz Large Mug (+$3.00)', 'price_mode' => 'add_fixed', 'price' => 3.00, 'sku_prefix' => 'MUG15' ),
@@ -474,6 +483,14 @@ class POD_Option_Forms {
                         'required'      => true,
                         'show_check'    => true,
                         'semantic_role' => 'size',
+                        'helper_popup'  => array(
+                            'enabled'    => true,
+                            'label'      => 'Size Guide',
+                            'position'   => 'inline_label',
+                            'disclaimer' => 'Dimensions are measured across standard insulated stainless steel tumblers (20oz and 30oz).',
+                            'tabs'       => self::get_default_multitab_size_guide_tabs( 'apparel' ),
+                            'content'    => '',
+                        ),
                         'options'       => array(
                             array( 'id' => '20oz', 'label' => '20oz Skinny Tumbler', 'price_mode' => 'none', 'price' => 0, 'sku_prefix' => 'TUMB20' ),
                             array( 'id' => '30oz', 'label' => '30oz Travel Tumbler (+$4.00)', 'price_mode' => 'add_fixed', 'price' => 4.00, 'sku_prefix' => 'TUMB30' ),
@@ -1137,14 +1154,23 @@ class POD_Option_Forms {
             return;
         }
 
-        $base_price    = floatval( $product->get_price() ?: 24.99 );
-        $svg_icons     = self::get_svg_library();
-        $popups_to_out = array();
+        $base_price         = floatval( $product->get_price() ?: 24.99 );
+        $svg_icons          = self::get_svg_library();
+        $popups_to_out      = array();
+        $artwork_url        = trim( (string) get_post_meta( intval( $product->get_id() ), '_pod_artwork_url', true ) );
+        if ( $artwork_url !== '' && function_exists( 'sac_cloak_external_media_url' ) ) {
+            $artwork_url = sac_cloak_external_media_url( $artwork_url );
+        }
+        $meta_default_color = sanitize_title( (string) get_post_meta( intval( $product->get_id() ), '_pod_default_color', true ) );
+        $store_domain       = strtolower( (string) wp_parse_url( home_url(), PHP_URL_HOST ) );
         ?>
         <div class="pod-of-container"
              data-form-id="<?php echo esc_attr( $form['id'] ); ?>"
              data-base-price="<?php echo esc_attr( number_format( $base_price, 2, '.', '' ) ); ?>"
-             data-show-summary="<?php echo ! empty( $form['show_price_summary'] ) ? '1' : '0'; ?>">
+             data-show-summary="<?php echo ! empty( $form['show_price_summary'] ) ? '1' : '0'; ?>"
+             data-artwork-url="<?php echo esc_attr( $artwork_url ); ?>"
+             data-default-color="<?php echo esc_attr( $meta_default_color ); ?>"
+             data-store-domain="<?php echo esc_attr( $store_domain ); ?>">
 
             <div class="pod-of-live-price-bar">
                 <span class="pod-of-live-price-amount"><?php echo wp_kses_post( wc_price( $base_price ) ); ?></span>
@@ -1165,6 +1191,16 @@ class POD_Option_Forms {
                 }
 
                 $default_opt_id = $field['default_option_id'] ?? ( $options[0]['id'] ?? '' );
+                if ( ( $ftype === 'color_swatch_group' || ( $field['semantic_role'] ?? '' ) === 'color' ) && $meta_default_color !== '' ) {
+                    foreach ( $options as $o ) {
+                        $cand_id  = sanitize_title( (string) ( $o['id'] ?? '' ) );
+                        $cand_lbl = sanitize_title( (string) ( $o['label'] ?? '' ) );
+                        if ( $cand_id === $meta_default_color || $cand_lbl === $meta_default_color ) {
+                            $default_opt_id = $o['id'];
+                            break;
+                        }
+                    }
+                }
                 $selected_opt   = null;
                 foreach ( $options as $o ) {
                     if ( ( $o['id'] ?? '' ) === $default_opt_id ) {
