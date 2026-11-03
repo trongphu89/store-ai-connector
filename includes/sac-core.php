@@ -3,7 +3,7 @@ if ( ! defined( 'ABSPATH' ) || ! defined( 'SAC_PLUGIN_FILE' ) ) {
     exit;
 }
 
-define( 'SAC_VERSION',           '2.5.8' );
+define( 'SAC_VERSION',           '2.5.9' );
 define( 'SAC_PLUGIN_DIR',        plugin_dir_path( SAC_PLUGIN_FILE ) );
 define( 'SAC_API_KEY_OPTION',    'sac_api_key' );
 define( 'SAC_API_SECRET_OPTION', 'sac_api_secret' );

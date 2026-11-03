@@ -95,7 +95,10 @@ class POD_Custom_Fields {
         $optional_label = isset( $custom_fields['optional_label'] ) ? $custom_fields['optional_label'] : 'Add Personalization';
         
         ?>
-        <div class="pod-custom-fields-container" data-optional="<?php echo $is_optional ? 'true' : 'false'; ?>">
+        <div class="pod-custom-fields-container"
+             data-optional="<?php echo $is_optional ? 'true' : 'false'; ?>"
+             data-enable-fee="<?php echo ( $enable_fee && floatval( $fee_amount ) > 0 ) ? 'true' : 'false'; ?>"
+             data-extra-fee="<?php echo esc_attr( number_format( floatval( $fee_amount ), 2, '.', '' ) ); ?>">
             <?php if ( $is_optional ) : ?>
                 <label class="pod-optional-toggle">
                     <input type="checkbox" name="pod_enable_personalization" id="pod_enable_personalization" value="1" />
@@ -103,7 +106,7 @@ class POD_Custom_Fields {
                         <span class="pod-toggle-icon">✏️</span>
                         <?php echo esc_html( $optional_label ); ?>
                         <?php if ( $enable_fee && floatval( $fee_amount ) > 0 ) : ?>
-                            <span class="pod-toggle-fee">(+$<?php echo esc_html( $fee_amount ); ?>)</span>
+                            <span class="pod-toggle-fee">(+$<?php echo esc_html( number_format( floatval( $fee_amount ), 2, '.', '' ) ); ?>)</span>
                         <?php endif; ?>
                     </span>
                 </label>
@@ -112,6 +115,9 @@ class POD_Custom_Fields {
                 <h4 class="pod-custom-fields-title">
                     <span class="pod-icon">✏️</span>
                     <?php esc_html_e( 'Personalization', 'pod-connector' ); ?>
+                    <?php if ( $enable_fee && floatval( $fee_amount ) > 0 ) : ?>
+                        <span class="pod-toggle-fee">(+$<?php echo esc_html( number_format( floatval( $fee_amount ), 2, '.', '' ) ); ?>)</span>
+                    <?php endif; ?>
                 </h4>
                 <div class="pod-custom-fields-wrapper">
             <?php endif; ?>
@@ -310,16 +316,24 @@ class POD_Custom_Fields {
         
         foreach ( $cart_item['pod_custom_fields'] as $field_id => $field_data ) {
             $display_value = $field_data['value'];
+            $display_html  = null;
             
-            // For file fields, show filename only
+            // For file fields, render clickable signed view link
             if ( $field_data['type'] === 'file' && ! empty( $display_value ) ) {
-                $display_value = '📎 ' . basename( $display_value );
+                $fname         = basename( $display_value );
+                $signed_url    = self::get_public_file_url( $display_value );
+                $display_value = '📎 ' . $fname;
+                $display_html  = '<a href="' . esc_url( $signed_url ) . '" target="_blank" rel="noopener">📎 ' . esc_html( $fname ) . '</a>';
             }
             
-            $item_data[] = array(
-                'key' => $field_data['label'],
+            $entry = array(
+                'key'   => $field_data['label'],
                 'value' => $display_value,
             );
+            if ( $display_html !== null ) {
+                $entry['display'] = $display_html;
+            }
+            $item_data[] = $entry;
         }
         
         return $item_data;
@@ -449,9 +463,11 @@ class POD_Custom_Fields {
                 unset( $formatted_meta[ $key ] );
             }
             
-            // Format file paths to show filename only
-            if ( strpos( $meta->value, '/pod-custom/' ) !== false ) {
-                $formatted_meta[ $key ]->display_value = '📎 ' . basename( $meta->value );
+            // Format file paths to show clickable signed link
+            if ( is_string( $meta->value ) && strpos( $meta->value, '/pod-custom/' ) !== false ) {
+                $fname = basename( $meta->value );
+                $surl  = self::get_public_file_url( $meta->value );
+                $formatted_meta[ $key ]->display_value = '<a href="' . esc_url( $surl ) . '" target="_blank" rel="noopener">📎 ' . esc_html( $fname ) . '</a>';
             }
         }
         
@@ -480,10 +496,10 @@ class POD_Custom_Fields {
         }
         
         // Validate file type
-        $allowed_types = array( 'jpg', 'jpeg', 'png', 'svg', 'pdf' );
+        $allowed_types = array( 'jpg', 'jpeg', 'png', 'webp', 'svg', 'pdf' );
         $file_ext = strtolower( pathinfo( $file['name'], PATHINFO_EXTENSION ) );
         
-        if ( ! in_array( $file_ext, $allowed_types ) ) {
+        if ( ! in_array( $file_ext, $allowed_types, true ) ) {
             wp_send_json_error( array( 'message' => 'File type not allowed. Allowed: ' . implode( ', ', $allowed_types ) ) );
         }
         
@@ -521,14 +537,30 @@ class POD_Custom_Fields {
         $relative_path = '/pod-custom/' . $unique_name;
         
         wp_send_json_success( array(
-            'path' => $relative_path,
+            'path'     => $relative_path,
             'filename' => $file['name'],
-            'preview' => in_array( $file_ext, array( 'jpg', 'jpeg', 'png' ) ) 
-                ? $upload_dir['baseurl'] . $relative_path 
-                : null
+            'preview'  => in_array( $file_ext, array( 'jpg', 'jpeg', 'png', 'webp' ), true )
+                ? self::get_public_file_url( $relative_path )
+                : null,
         ) );
     }
 
+    /**
+     * Build HMAC-signed inline viewer URL so customer photos in `/pod-custom/` (protected by .htaccess)
+     * render cleanly in Product Preview, Cart/Checkout, Order Emails, and POD AI Hub Fulfillment.
+     */
+    public static function get_public_file_url( $relative_path ) {
+        $fname = basename( (string) $relative_path );
+        if ( $fname === '' ) {
+            return '';
+        }
+        $sig = hash_hmac( 'sha256', 'pod_cf_view|' . $fname, wp_salt( 'auth' ) );
+        return add_query_arg( array(
+            'pod_cf_view' => '1',
+            'file'        => $fname,
+            'sig'         => $sig,
+        ), home_url( '/' ) );
+    }
 
     /**
      * Get secure download URL for admin
@@ -544,9 +576,39 @@ class POD_Custom_Fields {
     }
 
     /**
-     * Handle secure file download
+     * Handle secure file download & HMAC-signed inline image preview
      */
     public static function handle_secure_download() {
+        // 1. Public HMAC-signed viewer for uploaded personalization files
+        if ( isset( $_GET['pod_cf_view'] ) && $_GET['pod_cf_view'] == '1' ) {
+            $fname = isset( $_GET['file'] ) ? sanitize_file_name( wp_unslash( $_GET['file'] ) ) : '';
+            $sig   = isset( $_GET['sig'] ) ? sanitize_text_field( wp_unslash( $_GET['sig'] ) ) : '';
+            if ( $fname === '' || $sig === '' ) {
+                status_header( 400 );
+                exit( 'Bad request' );
+            }
+            $expected = hash_hmac( 'sha256', 'pod_cf_view|' . $fname, wp_salt( 'auth' ) );
+            if ( ! hash_equals( $expected, $sig ) ) {
+                status_header( 403 );
+                exit( 'Forbidden' );
+            }
+            $upload_dir = wp_upload_dir();
+            $base_dir   = realpath( $upload_dir['basedir'] . '/pod-custom' );
+            $full_path  = $base_dir ? realpath( $base_dir . '/' . $fname ) : false;
+            if ( ! $base_dir || ! $full_path || strpos( $full_path, $base_dir ) !== 0 || ! is_file( $full_path ) ) {
+                status_header( 404 );
+                exit( 'File not found' );
+            }
+            $mime_type = function_exists( 'mime_content_type' ) ? mime_content_type( $full_path ) : 'application/octet-stream';
+            $disp      = ( strpos( (string) $mime_type, 'image/' ) === 0 ) ? 'inline' : 'attachment';
+            header( 'Content-Type: ' . $mime_type );
+            header( 'Content-Disposition: ' . $disp . '; filename="' . basename( $full_path ) . '"' );
+            header( 'Content-Length: ' . filesize( $full_path ) );
+            header( 'Cache-Control: public, max-age=86400' );
+            readfile( $full_path );
+            exit;
+        }
+
         if ( ! isset( $_GET['pod_download'] ) || $_GET['pod_download'] != 1 ) {
             return;
         }

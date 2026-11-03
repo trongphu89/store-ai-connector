@@ -446,7 +446,11 @@ class SAC_Orders {
 						$val = $meta->value;
 						if ( strpos( $key, '_pod_custom_file_' ) === 0 && ! empty( $val ) ) {
 							$field_key = substr( $key, strlen( '_pod_custom_file_' ) );
-							$file_url  = $upload_dir['baseurl'] . '/' . ltrim( (string) $val, '/' );
+							if ( class_exists( 'POD_Custom_Fields' ) && method_exists( 'POD_Custom_Fields', 'get_public_file_url' ) ) {
+								$file_url = POD_Custom_Fields::get_public_file_url( (string) $val );
+							} else {
+								$file_url = $upload_dir['baseurl'] . '/' . ltrim( (string) $val, '/' );
+							}
 							$out[ $field_key ] = $file_url;
 						} elseif ( strpos( $key, '_pod_custom_' ) === 0 && strpos( $key, '_pod_custom_file_' ) !== 0 && $val !== '' && $val !== null ) {
 							$field_key = substr( $key, strlen( '_pod_custom_' ) );

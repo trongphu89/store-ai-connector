@@ -5,6 +5,59 @@
 (function () {
     'use strict';
 
+    function notifyPersonalizationChanged() {
+        try {
+            document.dispatchEvent(new CustomEvent('pod_custom_fields_updated'));
+        } catch (_e) {
+            // Ignore older browser CustomEvent constructor fallback
+        }
+
+        // Standalone live price update when no Virtual Option Form (.pod-of-container) is mounted
+        if (document.querySelector('.pod-of-container')) return;
+        var cfBox = document.querySelector('.pod-custom-fields-container[data-enable-fee="true"]');
+        if (!cfBox) return;
+        var extraFee = parseFloat(cfBox.getAttribute('data-extra-fee')) || 0;
+        if (extraFee <= 0) return;
+
+        var priceEls = document.querySelectorAll('.summary .price .woocommerce-Price-amount bdi, .product .summary p.price .woocommerce-Price-amount bdi, .wp-block-woocommerce-product-price .woocommerce-Price-amount bdi');
+        if (!priceEls.length) return;
+
+        var isOptional = cfBox.getAttribute('data-optional') === 'true';
+        var isActive = false;
+        if (isOptional) {
+            var chk = cfBox.querySelector('#pod_enable_personalization');
+            isActive = !!(chk && chk.checked);
+        } else {
+            var fields = cfBox.querySelectorAll('.pod-custom-fields-form input:not([type="file"]):not([type="hidden"]), .pod-custom-fields-form textarea, .pod-custom-fields-form select, .pod-custom-fields-form .pod-file-path');
+            for (var f = 0; f < fields.length; f++) {
+                if (fields[f].value && String(fields[f].value).trim() !== '') {
+                    isActive = true;
+                    break;
+                }
+            }
+        }
+
+        for (var p = 0; p < priceEls.length; p++) {
+            var el = priceEls[p];
+            if (el.closest('del')) continue;
+            var baseAttr = el.getAttribute('data-pod-base-price');
+            var symAttr = el.getAttribute('data-pod-currency-sym');
+            if (!baseAttr) {
+                var rawTxt = (el.textContent || '').trim();
+                var m = rawTxt.match(/^([^\d]*)([\d,.]+)/);
+                if (!m) continue;
+                symAttr = m[1] || '$';
+                baseAttr = String(parseFloat(m[2].replace(/,/g, '')) || 0);
+                el.setAttribute('data-pod-base-price', baseAttr);
+                el.setAttribute('data-pod-currency-sym', symAttr);
+            }
+            var baseNum = parseFloat(baseAttr) || 0;
+            if (baseNum <= 0) continue;
+            var nextPrice = baseNum + (isActive ? extraFee : 0);
+            el.textContent = (symAttr || '$') + nextPrice.toFixed(2);
+        }
+    }
+
     function initCustomFields() {
         // Optional personalization checkbox toggle
         var optContainers = document.querySelectorAll('.pod-custom-fields-container[data-optional="true"]');
@@ -39,8 +92,20 @@
                 setEnabled(checkbox.checked);
                 checkbox.addEventListener('change', function () {
                     setEnabled(checkbox.checked);
+                    notifyPersonalizationChanged();
                 });
             })(optContainers[c]);
+        }
+
+        // Bind live input/change events on all personalization fields for live fee updates
+        var allCfContainers = document.querySelectorAll('.pod-custom-fields-container');
+        for (var k = 0; k < allCfContainers.length; k++) {
+            (function (cfEl) {
+                if (cfEl.getAttribute('data-pod-cf-live-bound') === '1') return;
+                cfEl.setAttribute('data-pod-cf-live-bound', '1');
+                cfEl.addEventListener('input', notifyPersonalizationChanged);
+                cfEl.addEventListener('change', notifyPersonalizationChanged);
+            })(allCfContainers[k]);
         }
 
         // Upload areas
@@ -104,6 +169,7 @@
                                     }
                                 }
                                 if (preview) preview.style.display = 'flex';
+                                notifyPersonalizationChanged();
                             } else {
                                 window.alert((response && response.data && response.data.message) || 'Upload failed');
                                 if (dropzone) dropzone.style.display = '';
@@ -153,6 +219,7 @@
                         if (input) input.value = '';
                         if (preview) preview.style.display = 'none';
                         if (dropzone) dropzone.style.display = '';
+                        notifyPersonalizationChanged();
                     });
                 }
             })(areas[i]);

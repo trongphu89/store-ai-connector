@@ -174,6 +174,31 @@
                 }
             }
 
+            // Include Personalization Extra Fee when active on the same product page
+            var cfContainers = document.querySelectorAll('.pod-custom-fields-container[data-enable-fee="true"]');
+            for (var cfi = 0; cfi < cfContainers.length; cfi++) {
+                var cfc = cfContainers[cfi];
+                var cfFee = parseFloat(cfc.getAttribute('data-extra-fee')) || 0;
+                if (cfFee <= 0) continue;
+                var cfOptional = cfc.getAttribute('data-optional') === 'true';
+                var cfActive = false;
+                if (cfOptional) {
+                    var optChk = cfc.querySelector('#pod_enable_personalization');
+                    cfActive = !!(optChk && optChk.checked);
+                } else {
+                    var cfInputs = cfc.querySelectorAll('.pod-custom-fields-form input:not([type="file"]):not([type="hidden"]), .pod-custom-fields-form textarea, .pod-custom-fields-form select, .pod-custom-fields-form .pod-file-path');
+                    for (var k = 0; k < cfInputs.length; k++) {
+                        if (cfInputs[k].value && String(cfInputs[k].value).trim() !== '') {
+                            cfActive = true;
+                            break;
+                        }
+                    }
+                }
+                if (cfActive) {
+                    addTotal += cfFee;
+                }
+            }
+
             var finalPrice = Math.max(0.01, Math.round((effectiveBase + addTotal) * 100) / 100);
             var formattedFinal = formatMoney(finalPrice, currencySymbol);
 
@@ -503,6 +528,10 @@
         } catch (_err) {
             // Ignore URL parse errors on older browsers
         }
+
+        document.addEventListener('pod_custom_fields_updated', function () {
+            recalculatePrice();
+        });
 
         recalculatePrice();
     }

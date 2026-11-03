@@ -1596,10 +1596,22 @@ class POD_Option_Forms {
             return '<svg viewBox="0 0 280 300" class="pod-sg-diagram-svg" aria-hidden="true">'
                 . '<rect x="64" y="54" width="124" height="192" rx="14" fill="#14171A" stroke="#2D333B" stroke-width="2"/>'
                 . '<path d="M188 88h26c18 0 30 14 30 34v32c0 20-12 34-30 34h-26v-22h22c8 0 12-6 12-14v-28c0-8-4-14-12-14h-22V88z" fill="#14171A"/>'
-                . '<line x1="66" y1="150" x2="186" y2="150" stroke="#FFFFFF" stroke-width="3.5"/>'
-                . '<line x1="106" y1="56" x2="106" y2="244" stroke="#FFFFFF" stroke-width="3.5"/>'
-                . '<text x="118" y="141" fill="#FFFFFF" font-size="15" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1">DIAMETER</text>'
-                . '<text x="115" y="176" fill="#FFFFFF" font-size="15" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 115 176)">HEIGHT</text>'
+                . '<line x1="66" y1="145" x2="186" y2="145" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<line x1="86" y1="56" x2="86" y2="244" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<text x="137" y="136" text-anchor="middle" fill="#FFFFFF" font-size="13.5" font-weight="700" font-family="Arial, sans-serif" letter-spacing="0.8">DIAMETER</text>'
+                . '<text x="95" y="168" fill="#FFFFFF" font-size="14" font-weight="700" font-family="Arial, sans-serif" letter-spacing="1" transform="rotate(90 95 168)">HEIGHT</text>'
+                . '</svg>';
+        }
+
+        if ( $type === 'youthshirt' || $type === 'youth' ) {
+            return '<svg viewBox="0 0 300 330" class="pod-sg-diagram-svg" aria-hidden="true">'
+                . '<path d="M120 62c8 10 19 15 30 15s22-5 30-15l58 26-18 48-22-10v144H102V126l-22 10-18-48 58-26z" fill="#14171A"/>'
+                . '<rect x="136" y="68" width="28" height="10" rx="2" fill="#E2E8F0"/>'
+                . '<text x="150" y="76" text-anchor="middle" fill="#0F172A" font-size="7" font-weight="700" font-family="Arial, sans-serif">YOUTH</text>'
+                . '<line x1="102" y1="154" x2="198" y2="154" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<line x1="122" y1="65" x2="122" y2="270" stroke="#FFFFFF" stroke-width="3.5"/>'
+                . '<text x="158" y="145" text-anchor="middle" fill="#FFFFFF" font-size="14" font-weight="600" font-family="Arial, sans-serif" letter-spacing="0.8">WIDTH</text>'
+                . '<text x="130" y="170" fill="#FFFFFF" font-size="14" font-weight="600" font-family="Arial, sans-serif" letter-spacing="0.8" transform="rotate(90 130 170)">LENGTH</text>'
                 . '</svg>';
         }
 
